@@ -1,13 +1,35 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { loginAccount, registerAccount } from '../api.js'
 
 function AuthForm({ mode }) {
   const isRegister = mode === 'register'
-  const [submitted, setSubmitted] = useState(false)
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault()
-    setSubmitted(true)
+    setError('')
+    setMessage('')
+    setSubmitting(true)
+    const form = new FormData(event.currentTarget)
+    const credentials = {
+      email: form.get('email'),
+      password: form.get('password'),
+    }
+
+    try {
+      const result = isRegister
+        ? await registerAccount({ ...credentials, full_name: form.get('name') })
+        : await loginAccount(credentials)
+      localStorage.setItem('safe-nyumba-token', result.token)
+      setMessage(`Signed in as ${result.user.full_name}.`)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   return (
@@ -43,8 +65,11 @@ function AuthForm({ mode }) {
             <label htmlFor="password">Password</label>
             <input id="password" name="password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength="8" required />
           </div>
-          <button className="button form-submit" type="submit">{isRegister ? 'Create account' : 'Login'}</button>
-          {submitted && <p className="form-message" role="status">Account access will be connected when the Safe Nyumba backend is ready.</p>}
+          <button className="button form-submit" type="submit" disabled={submitting}>
+            {submitting ? 'Please wait...' : isRegister ? 'Create account' : 'Login'}
+          </button>
+          {error && <p className="form-message" role="alert">{error}</p>}
+          {message && <p className="form-message" role="status">{message}</p>}
           <p className="auth-switch">
             {isRegister ? 'Already have an account? ' : 'New to Safe Nyumba? '}
             <Link to={isRegister ? '/login/' : '/register/'}>{isRegister ? 'Login' : 'Create an account'}</Link>

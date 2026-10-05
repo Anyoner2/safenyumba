@@ -29,7 +29,7 @@ function PropertyCard({ property }) {
           <span>{property.amenity}</span>
         </div>
         <div className="property-bottom">
-          <span className="vacancy">Vacant now</span>
+          <span className="vacancy">{property.vacant ? 'Vacant now' : 'Currently occupied'}</span>
           <span className="property-type">{property.kind}</span>
         </div>
         <Link className="property-card-link" to="/houses/" aria-label={`Browse homes like ${property.title}`}><ArrowUpRight size={17} /></Link>

@@ -10,3 +10,5 @@ backend/venv/
 backend/.env
 backend/.env.*
 !backend/.env.example
+.venv/
+backend/db.sqlite3

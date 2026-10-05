@@ -1,8 +1,9 @@
+import { useEffect, useState } from 'react'
 import { ArrowRight, CalendarDays, Handshake, House, Search } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { getProperties } from '../api.js'
 import Hero from '../components/Hero.jsx'
 import PropertyCard from '../components/PropertyCard.jsx'
-import properties from '../propertyData.js'
 
 const steps = [
   { title: 'Find a house', copy: 'Search available, verified homes by neighbourhood and budget.', Icon: Search },
@@ -12,6 +13,25 @@ const steps = [
 ]
 
 function Home() {
+  const [properties, setProperties] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    let active = true
+    getProperties()
+      .then((items) => {
+        if (active) setProperties(items)
+      })
+      .catch((requestError) => {
+        if (active) setError(requestError.message)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+    return () => { active = false }
+  }, [])
+
   return (
     <>
       <Hero />
@@ -25,9 +45,14 @@ function Home() {
             </div>
             <Link className="text-link" to="/houses/">Browse all houses <ArrowRight size={16} /></Link>
           </div>
-          <div className="property-grid">
-            {properties.slice(0, 3).map((property) => <PropertyCard key={property.id} property={property} />)}
-          </div>
+          {loading ? <p className="empty-state" role="status">Loading available homes...</p> : null}
+          {error ? <p className="empty-state" role="alert">Homes are unavailable: {error}</p> : null}
+          {!loading && !error && properties.length === 0 ? <p className="empty-state">No verified homes are available right now.</p> : null}
+          {!loading && !error && properties.length > 0 ? (
+            <div className="property-grid">
+              {properties.slice(0, 3).map((property) => <PropertyCard key={property.id} property={property} />)}
+            </div>
+          ) : null}
         </div>
       </section>
       <section className="how-section">
