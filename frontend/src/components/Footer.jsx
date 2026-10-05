@@ -14,10 +14,10 @@ function Footer() {
             <p className="footer-intro">A clearer, safer way to find your next home in Kenya.</p>
           </div>
           <nav className="footer-nav" aria-label="Footer navigation">
-            <Link to="/houses">Find houses</Link>
-            <Link to="/estates">Explore estates</Link>
-            <Link to="/register">List a property</Link>
-            <Link to="/login">Login</Link>
+            <Link to="/houses/">Find houses</Link>
+            <Link to="/estates/">Explore estates</Link>
+            <Link to="/register/">List a property</Link>
+            <Link to="/login/">Login</Link>
           </nav>
         </div>
         <div className="footer-bottom">

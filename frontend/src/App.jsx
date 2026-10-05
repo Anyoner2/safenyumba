@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Footer from './components/Footer.jsx'
 import Navbar from './components/Navbar.jsx'
 import Estates from './pages/Estates.jsx'
@@ -10,7 +10,7 @@ import './App.css'
 
 function App() {
   return (
-    <BrowserRouter basename={import.meta.env.BASE_URL}>
+    <HashRouter>
       <Navbar />
       <main className="page-main">
         <Routes>
@@ -23,7 +23,7 @@ function App() {
         </Routes>
       </main>
       <Footer />
-    </BrowserRouter>
+    </HashRouter>
   )
 }
 

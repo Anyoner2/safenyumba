@@ -14,7 +14,7 @@ function SearchBar() {
     if (location) params.set('location', location)
     if (budget) params.set('budget', budget)
     if (bedrooms) params.set('bedrooms', bedrooms)
-    navigate(`/houses${params.size ? `?${params.toString()}` : ''}`)
+    navigate(`/houses/${params.size ? `?${params.toString()}` : ''}`)
   }
 
   return (

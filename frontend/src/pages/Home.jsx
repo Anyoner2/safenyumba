@@ -23,7 +23,7 @@ function Home() {
               <h2>Featured homes</h2>
               <p>Fresh listings, checked for availability and ready for your next move.</p>
             </div>
-            <Link className="text-link" to="/houses">Browse all houses <ArrowRight size={16} /></Link>
+            <Link className="text-link" to="/houses/">Browse all houses <ArrowRight size={16} /></Link>
           </div>
           <div className="property-grid">
             {properties.slice(0, 3).map((property) => <PropertyCard key={property.id} property={property} />)}
@@ -52,7 +52,7 @@ function Home() {
               <span className="eyebrow">Neighbourhood first</span>
               <h2>Find the right place to put down roots.</h2>
               <p>Explore established estates, learn what each area offers, and find homes that fit the way you live.</p>
-              <Link className="button button-light" to="/estates">Explore estates <ArrowRight size={16} /></Link>
+              <Link className="button button-light" to="/estates/">Explore estates <ArrowRight size={16} /></Link>
             </div>
             <img
               className="estate-strip-image"

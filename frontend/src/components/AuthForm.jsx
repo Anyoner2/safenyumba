@@ -47,7 +47,7 @@ function AuthForm({ mode }) {
           {submitted && <p className="form-message" role="status">Account access will be connected when the Safe Nyumba backend is ready.</p>}
           <p className="auth-switch">
             {isRegister ? 'Already have an account? ' : 'New to Safe Nyumba? '}
-            <Link to={isRegister ? '/login' : '/register'}>{isRegister ? 'Login' : 'Create an account'}</Link>
+            <Link to={isRegister ? '/login/' : '/register/'}>{isRegister ? 'Login' : 'Create an account'}</Link>
           </p>
         </form>
       </div>

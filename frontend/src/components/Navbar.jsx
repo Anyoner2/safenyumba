@@ -4,9 +4,9 @@ import { Link, NavLink } from 'react-router-dom'
 
 const links = [
   { to: '/', label: 'Home', end: true },
-  { to: '/houses', label: 'Find Houses' },
-  { to: '/estates', label: 'Estates' },
-  { to: '/register', label: 'List Property' },
+  { to: '/houses/', label: 'Find Houses' },
+  { to: '/estates/', label: 'Estates' },
+  { to: '/register/', label: 'List Property' },
 ]
 
 function Navbar() {
@@ -45,13 +45,13 @@ function Navbar() {
             </NavLink>
           ))}
           <div className="nav-mobile-actions">
-            <Link className="login-link" to="/login" onClick={closeMenu}>Login</Link>
-            <Link className="button nav-signup" to="/register" onClick={closeMenu}>Sign Up</Link>
+            <Link className="login-link" to="/login/" onClick={closeMenu}>Login</Link>
+            <Link className="button nav-signup" to="/register/" onClick={closeMenu}>Sign Up</Link>
           </div>
         </nav>
         <div className="nav-actions">
-          <Link className="login-link" to="/login">Login</Link>
-          <Link className="button nav-signup" to="/register">Sign Up</Link>
+          <Link className="login-link" to="/login/">Login</Link>
+          <Link className="button nav-signup" to="/register/">Sign Up</Link>
         </div>
       </div>
     </header>
