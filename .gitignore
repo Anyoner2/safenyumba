@@ -10,5 +10,7 @@ backend/venv/
 backend/.env
 backend/.env.*
 !backend/.env.example
+backend/node_modules/
+backend/data.json
 .venv/
 backend/db.sqlite3

@@ -7,6 +7,7 @@ import express from 'express'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
+const isVercel = Boolean(process.env.VERCEL)
 const dataFile = path.join(process.cwd(), 'data.json')
 
 const seedEstates = [
@@ -333,6 +334,10 @@ function makeToken() {
   return crypto.randomBytes(32).toString('hex')
 }
 
-app.listen(port, () => {
-  console.log(`Safe Nyumba API running on http://localhost:${port}`)
-})
+if (!isVercel) {
+  app.listen(port, () => {
+    console.log(`Safe Nyumba API running on http://localhost:${port}`)
+  })
+}
+
+export default app
