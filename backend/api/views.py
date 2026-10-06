@@ -14,6 +14,22 @@ from .serializers import EstateSerializer, LoginSerializer, PropertySerializer, 
 
 @api_view(['GET'])
 @permission_classes([AllowAny])
+def root(request):
+    return Response({
+        'status': 'ok',
+        'app': 'Safe Nyumba API',
+        'message': 'API is running.',
+        'endpoints': {
+            'health': '/api/health/',
+            'properties': '/api/properties/',
+            'estates': '/api/estates/',
+            'auth': '/api/auth/',
+        },
+    })
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
 def health(request):
     return Response({'status': 'ok'})
 

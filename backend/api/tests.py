@@ -44,6 +44,12 @@ class PublicApiTests(APITestCase):
 			image_alt='A family home',
 		)
 
+	def test_root_endpoint(self):
+		response = self.client.get('/')
+		self.assertEqual(response.status_code, 200)
+		self.assertEqual(response.data['status'], 'ok')
+		self.assertEqual(response.data['app'], 'Safe Nyumba API')
+
 	def test_health_endpoint(self):
 		response = self.client.get(reverse('api-health'))
 		self.assertEqual(response.status_code, 200)
