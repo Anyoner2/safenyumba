@@ -334,7 +334,7 @@ app.get('/api/estates/', (req, res) => {
 })
 
 app.post('/api/auth/register/', async (req, res) => {
-  const { full_name, email, password } = req.body || {}
+  const { full_name, email, password, confirm_password } = req.body || {}
 
   if (!full_name || !String(full_name).trim()) {
     return res.status(400).json({ full_name: ['Enter your full name.'] })
@@ -347,6 +347,10 @@ app.post('/api/auth/register/', async (req, res) => {
 
   if (password === undefined || String(password).length < 8) {
     return res.status(400).json({ password: ['Password must be at least 8 characters long.'] })
+  }
+
+  if (String(password) !== String(confirm_password ?? '')) {
+    return res.status(400).json({ confirm_password: ['Passwords do not match.'] })
   }
 
   const existingUser = await getUserByEmail(normalizedEmail)

@@ -19,9 +19,18 @@ function AuthForm({ mode }) {
       password: form.get('password'),
     }
 
+    if (isRegister) {
+      const confirmPassword = String(form.get('confirm_password') || '')
+      if (credentials.password !== confirmPassword) {
+        setError('Passwords do not match.')
+        setSubmitting(false)
+        return
+      }
+    }
+
     try {
       const result = isRegister
-        ? await registerAccount({ ...credentials, full_name: form.get('name') })
+        ? await registerAccount({ ...credentials, full_name: form.get('name'), confirm_password: form.get('confirm_password') })
         : await loginAccount(credentials)
       localStorage.setItem('safe-nyumba-token', result.token)
       setMessage(`Signed in as ${result.user.full_name}.`)
@@ -65,6 +74,19 @@ function AuthForm({ mode }) {
             <label htmlFor="password">Password</label>
             <input id="password" name="password" type="password" autoComplete={isRegister ? 'new-password' : 'current-password'} minLength="8" required />
           </div>
+          {isRegister && (
+            <div className="form-field">
+              <label htmlFor="confirm-password">Confirm password</label>
+              <input
+                id="confirm-password"
+                name="confirm_password"
+                type="password"
+                autoComplete="new-password"
+                minLength="8"
+                required
+              />
+            </div>
+          )}
           <button className="button form-submit" type="submit" disabled={submitting}>
             {submitting ? 'Please wait...' : isRegister ? 'Create account' : 'Login'}
           </button>
