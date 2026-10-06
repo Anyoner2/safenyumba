@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { loginAccount, registerAccount } from '../api.js'
 
 function AuthForm({ mode }) {
   const isRegister = mode === 'register'
+  const navigate = useNavigate()
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -34,6 +35,7 @@ function AuthForm({ mode }) {
         : await loginAccount(credentials)
       localStorage.setItem('safe-nyumba-token', result.token)
       setMessage(`Signed in as ${result.user.full_name}.`)
+      navigate('/', { replace: true })
     } catch (requestError) {
       setError(requestError.message)
     } finally {
