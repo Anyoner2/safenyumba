@@ -1,5 +1,5 @@
 const configuredBaseUrl = import.meta.env.VITE_API_URL
-const apiBaseUrl = (configuredBaseUrl || (import.meta.env.DEV ? 'http://127.0.0.1:8000/api' : '')).replace(/\/+$/, '')
+const apiBaseUrl = (configuredBaseUrl || (import.meta.env.DEV ? 'http://127.0.0.1:4000/api' : '')).replace(/\/+$/, '')
 
 async function request(path, { body, method = 'GET' } = {}) {
   if (!apiBaseUrl) {
@@ -19,7 +19,7 @@ async function request(path, { body, method = 'GET' } = {}) {
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     })
   } catch {
-    throw new Error('Could not reach the API. Make sure the Django server is running.')
+    throw new Error('Could not reach the API. Make sure the Express server is running.')
   }
 
   const payload = response.status === 204 ? null : await response.json().catch(() => null)
