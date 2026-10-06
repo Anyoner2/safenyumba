@@ -8,12 +8,20 @@ const app = express()
 const port = Number(process.env.PORT || 4000)
 const isVercel = Boolean(process.env.VERCEL)
 const databaseUrl = process.env.DATABASE_URL
-const pool = databaseUrl
-  ? new Pool({
+let pool = null
+let databaseReady = false
+
+if (databaseUrl) {
+  try {
+    pool = new Pool({
       connectionString: databaseUrl,
       ssl: !isVercel ? false : { rejectUnauthorized: false },
     })
-  : null
+  } catch (error) {
+    console.warn('Postgres pool creation failed, falling back to memory store:', error.message)
+  }
+}
+
 const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {} }
 
 const seedEstates = [
@@ -108,23 +116,41 @@ function saveData() {
 }
 
 async function initializeDatabase() {
-  if (!pool) return
+  if (!pool) {
+    databaseReady = false
+    return false
+  }
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS users (
-      id TEXT PRIMARY KEY,
-      first_name TEXT NOT NULL,
-      email TEXT NOT NULL UNIQUE,
-      password_hash TEXT NOT NULL
-    );
-  `)
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        first_name TEXT NOT NULL,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL
+      );
+    `)
 
-  await pool.query(`
-    CREATE TABLE IF NOT EXISTS tokens (
-      token TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
-    );
-  `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tokens (
+        token TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+      );
+    `)
+
+    databaseReady = true
+    return true
+  } catch (error) {
+    console.warn('Postgres initialization failed, falling back to memory store:', error.message)
+    try {
+      await pool.end()
+    } catch {
+      // ignore shutdown errors
+    }
+    pool = null
+    databaseReady = false
+    return false
+  }
 }
 
 function hashPassword(password) {
@@ -141,7 +167,7 @@ function serializeUser(user) {
 }
 
 async function getUserByEmail(email) {
-  if (!pool) {
+  if (!pool || !databaseReady) {
     return data.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null
   }
 
@@ -152,7 +178,7 @@ async function getUserByEmail(email) {
 async function currentUserFromToken(token) {
   if (!token) return null
 
-  if (!pool) {
+  if (!pool || !databaseReady) {
     if (!data.tokens[token]) return null
     const userId = data.tokens[token]
     return data.users.find((user) => user.id === userId) || null
@@ -170,7 +196,7 @@ async function currentUserFromToken(token) {
 }
 
 async function saveToken(token, userId) {
-  if (!pool) {
+  if (!pool || !databaseReady) {
     data.tokens[token] = userId
     saveData()
     return
@@ -183,7 +209,7 @@ async function saveToken(token, userId) {
 }
 
 async function clearToken(token) {
-  if (!pool) {
+  if (!pool || !databaseReady) {
     if (token && data.tokens[token]) {
       delete data.tokens[token]
       saveData()
@@ -335,7 +361,7 @@ app.post('/api/auth/register/', async (req, res) => {
     password: hashPassword(String(password)),
   }
 
-  if (pool) {
+  if (pool && databaseReady) {
     await pool.query(
       'INSERT INTO users (id, first_name, email, password_hash) VALUES ($1, $2, $3, $4)',
       [user.id, user.first_name, user.email, user.password],
