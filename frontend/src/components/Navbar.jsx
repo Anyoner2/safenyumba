@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { House, Menu, X } from 'lucide-react'
 import { Link, NavLink } from 'react-router-dom'
+import { useAuth } from '../auth.jsx'
 
 const links = [
   { to: '/', label: 'Home', end: true },
@@ -11,6 +12,10 @@ const links = [
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const { user, signOut } = useAuth()
+  const userHandle = user?.email?.split('@')[0]
+    || user?.full_name?.trim().replace(/\s+/g, '').toLowerCase()
+    || 'there'
 
   function closeMenu() {
     setMenuOpen(false)
@@ -45,13 +50,31 @@ function Navbar() {
             </NavLink>
           ))}
           <div className="nav-mobile-actions">
-            <Link className="login-link" to="/login/" onClick={closeMenu}>Login</Link>
-            <Link className="button nav-signup" to="/register/" onClick={closeMenu}>Sign Up</Link>
+            {user ? (
+              <>
+                <span className="welcome-user">Welcome @{userHandle}</span>
+                <button className="login-link nav-logout" type="button" onClick={() => { closeMenu(); signOut() }}>Sign out</button>
+              </>
+            ) : (
+              <>
+                <Link className="login-link" to="/login/" onClick={closeMenu}>Login</Link>
+                <Link className="button nav-signup" to="/register/" onClick={closeMenu}>Sign Up</Link>
+              </>
+            )}
           </div>
         </nav>
         <div className="nav-actions">
-          <Link className="login-link" to="/login/">Login</Link>
-          <Link className="button nav-signup" to="/register/">Sign Up</Link>
+          {user ? (
+            <>
+              <span className="welcome-user">Welcome @{userHandle}</span>
+              <button className="login-link nav-logout" type="button" onClick={signOut}>Sign out</button>
+            </>
+          ) : (
+            <>
+              <Link className="login-link" to="/login/">Login</Link>
+              <Link className="button nav-signup" to="/register/">Sign Up</Link>
+            </>
+          )}
         </div>
       </div>
     </header>

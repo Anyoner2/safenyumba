@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { loginAccount, registerAccount } from '../api.js'
+import { useAuth } from '../auth.jsx'
 
 function AuthForm({ mode }) {
   const isRegister = mode === 'register'
   const navigate = useNavigate()
-  const [message, setMessage] = useState('')
+  const { signIn } = useAuth()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
   async function handleSubmit(event) {
     event.preventDefault()
     setError('')
-    setMessage('')
     setSubmitting(true)
     const form = new FormData(event.currentTarget)
     const credentials = {
@@ -33,8 +33,7 @@ function AuthForm({ mode }) {
       const result = isRegister
         ? await registerAccount({ ...credentials, full_name: form.get('name'), confirm_password: form.get('confirm_password') })
         : await loginAccount(credentials)
-      localStorage.setItem('safe-nyumba-token', result.token)
-      setMessage(`Signed in as ${result.user.full_name}.`)
+      signIn(result.token, result.user)
       navigate('/', { replace: true })
     } catch (requestError) {
       setError(requestError.message)
@@ -93,7 +92,6 @@ function AuthForm({ mode }) {
             {submitting ? 'Please wait...' : isRegister ? 'Create account' : 'Login'}
           </button>
           {error && <p className="form-message" role="alert">{error}</p>}
-          {message && <p className="form-message" role="status">{message}</p>}
           <p className="auth-switch">
             {isRegister ? 'Already have an account? ' : 'New to Safe Nyumba? '}
             <Link to={isRegister ? '/login/' : '/register/'}>{isRegister ? 'Login' : 'Create an account'}</Link>

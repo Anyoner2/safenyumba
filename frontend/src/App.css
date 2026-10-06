@@ -236,6 +236,8 @@ img { display: block; max-width: 100%; }
 .nav-link.active::after { position: absolute; right: 0; bottom: 0; left: 0; height: 3px; background: var(--clay); content: ''; }
 .nav-actions { display: flex; align-items: center; gap: 17px; }
 .login-link { color: var(--ink); font-size: 13px; font-weight: 700; text-decoration: none; }
+.welcome-user { color: var(--green); font-size: 13px; font-weight: 700; white-space: nowrap; }
+.nav-logout { border: 0; padding: 0; background: transparent; cursor: pointer; font: inherit; }
 .nav-signup { min-height: 40px; padding-inline: 15px; }
 .menu-toggle { display: none; width: 42px; height: 42px; border: 1px solid var(--line); border-radius: 4px; background: #fff; color: var(--green); }
 .nav-mobile-actions { display: none; }
