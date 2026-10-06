@@ -1,6 +1,4 @@
 import crypto from 'node:crypto'
-import fs from 'node:fs'
-import path from 'node:path'
 
 import cors from 'cors'
 import express from 'express'
@@ -8,7 +6,7 @@ import express from 'express'
 const app = express()
 const port = Number(process.env.PORT || 4000)
 const isVercel = Boolean(process.env.VERCEL)
-const dataFile = path.join(process.cwd(), 'data.json')
+const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {} }
 
 const seedEstates = [
   {
@@ -97,27 +95,8 @@ const seedProperties = [
   },
 ]
 
-const defaultData = { users: [], tokens: {} }
-
-function loadData() {
-  try {
-    const content = fs.readFileSync(dataFile, 'utf8')
-    if (!content.trim()) return structuredClone(defaultData)
-    const parsed = JSON.parse(content)
-    return {
-      users: Array.isArray(parsed.users) ? parsed.users : [],
-      tokens: parsed.tokens && typeof parsed.tokens === 'object' ? parsed.tokens : {},
-    }
-  } catch {
-    fs.writeFileSync(dataFile, JSON.stringify(defaultData, null, 2))
-    return structuredClone(defaultData)
-  }
-}
-
-let data = loadData()
-
 function saveData() {
-  fs.writeFileSync(dataFile, JSON.stringify(data, null, 2))
+  globalThis.__safeNyumbaData = data
 }
 
 function hashPassword(password) {
