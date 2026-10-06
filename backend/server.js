@@ -2,10 +2,18 @@ import crypto from 'node:crypto'
 
 import cors from 'cors'
 import express from 'express'
+import { Pool } from 'pg'
 
 const app = express()
 const port = Number(process.env.PORT || 4000)
 const isVercel = Boolean(process.env.VERCEL)
+const databaseUrl = process.env.DATABASE_URL
+const pool = databaseUrl
+  ? new Pool({
+      connectionString: databaseUrl,
+      ssl: !isVercel ? false : { rejectUnauthorized: false },
+    })
+  : null
 const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {} }
 
 const seedEstates = [
@@ -99,8 +107,91 @@ function saveData() {
   globalThis.__safeNyumbaData = data
 }
 
+async function initializeDatabase() {
+  if (!pool) return
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS users (
+      id TEXT PRIMARY KEY,
+      first_name TEXT NOT NULL,
+      email TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL
+    );
+  `)
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS tokens (
+      token TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+    );
+  `)
+}
+
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex')
+}
+
+function serializeUser(user) {
+  if (!user) return null
+  return {
+    id: user.id,
+    email: user.email,
+    full_name: user.first_name,
+  }
+}
+
+async function getUserByEmail(email) {
+  if (!pool) {
+    return data.users.find((user) => user.email.toLowerCase() === email.toLowerCase()) || null
+  }
+
+  const result = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+  return result.rows[0] || null
+}
+
+async function currentUserFromToken(token) {
+  if (!token) return null
+
+  if (!pool) {
+    if (!data.tokens[token]) return null
+    const userId = data.tokens[token]
+    return data.users.find((user) => user.id === userId) || null
+  }
+
+  const result = await pool.query(
+    `SELECT u.*
+     FROM tokens t
+     INNER JOIN users u ON u.id = t.user_id
+     WHERE t.token = $1`,
+    [token],
+  )
+
+  return result.rows[0] || null
+}
+
+async function saveToken(token, userId) {
+  if (!pool) {
+    data.tokens[token] = userId
+    saveData()
+    return
+  }
+
+  await pool.query(
+    'INSERT INTO tokens (token, user_id) VALUES ($1, $2) ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id',
+    [token, userId],
+  )
+}
+
+async function clearToken(token) {
+  if (!pool) {
+    if (token && data.tokens[token]) {
+      delete data.tokens[token]
+      saveData()
+    }
+    return
+  }
+
+  await pool.query('DELETE FROM tokens WHERE token = $1', [token])
 }
 
 function buildEstatePayload(estate) {
@@ -139,16 +230,10 @@ function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase()
 }
 
-function currentUserFromToken(token) {
-  if (!token || !data.tokens[token]) return null
-  const userId = data.tokens[token]
-  return data.users.find((user) => user.id === userId) || null
-}
-
-function authRequired(req, res, next) {
+async function authRequired(req, res, next) {
   const authHeader = req.headers.authorization || ''
   const token = authHeader.startsWith('Token ') ? authHeader.slice(6).trim() : ''
-  const user = currentUserFromToken(token)
+  const user = await currentUserFromToken(token)
   if (!user) {
     return res.status(401).json({ detail: 'Authentication required.' })
   }
@@ -156,6 +241,8 @@ function authRequired(req, res, next) {
   req.user = user
   next()
 }
+
+await initializeDatabase()
 
 app.use(cors({ origin: true, credentials: true }))
 app.use(express.json())
@@ -220,7 +307,7 @@ app.get('/api/estates/', (req, res) => {
   res.json(seedEstates.map(buildEstatePayload))
 })
 
-app.post('/api/auth/register/', (req, res) => {
+app.post('/api/auth/register/', async (req, res) => {
   const { full_name, email, password } = req.body || {}
 
   if (!full_name || !String(full_name).trim()) {
@@ -236,7 +323,8 @@ app.post('/api/auth/register/', (req, res) => {
     return res.status(400).json({ password: ['Password must be at least 8 characters long.'] })
   }
 
-  if (data.users.some((user) => user.email.toLowerCase() === normalizedEmail)) {
+  const existingUser = await getUserByEmail(normalizedEmail)
+  if (existingUser) {
     return res.status(400).json({ email: ['An account with this email already exists.'] })
   }
 
@@ -247,62 +335,54 @@ app.post('/api/auth/register/', (req, res) => {
     password: hashPassword(String(password)),
   }
 
-  data.users.push(user)
-  saveData()
+  if (pool) {
+    await pool.query(
+      'INSERT INTO users (id, first_name, email, password_hash) VALUES ($1, $2, $3, $4)',
+      [user.id, user.first_name, user.email, user.password],
+    )
+  } else {
+    data.users.push(user)
+    saveData()
+  }
 
   const token = makeToken()
-  data.tokens[token] = user.id
-  saveData()
+  await saveToken(token, user.id)
 
   res.status(201).json({
     token,
-    user: {
-      id: user.id,
-      email: user.email,
-      full_name: user.first_name,
-    },
+    user: serializeUser(user),
   })
 })
 
-app.post('/api/auth/login/', (req, res) => {
+app.post('/api/auth/login/', async (req, res) => {
   const { email, password } = req.body || {}
   const normalizedEmail = normalizeEmail(email)
-  const user = data.users.find((entry) => entry.email.toLowerCase() === normalizedEmail)
+  const user = await getUserByEmail(normalizedEmail)
+  const providedHash = hashPassword(String(password || ''))
+  const storedHash = user?.password_hash ?? user?.password
 
-  if (!user || user.password !== hashPassword(String(password || ''))) {
+  if (!user || storedHash !== providedHash) {
     return res.status(400).json({ detail: 'Email or password is incorrect.' })
   }
 
   const token = makeToken()
-  data.tokens[token] = user.id
-  saveData()
+  await saveToken(token, user.id)
 
   res.json({
     token,
-    user: {
-      id: user.id,
-      email: user.email,
-      full_name: user.first_name,
-    },
+    user: serializeUser(user),
   })
 })
 
-app.post('/api/auth/logout/', authRequired, (req, res) => {
+app.post('/api/auth/logout/', authRequired, async (req, res) => {
   const authHeader = req.headers.authorization || ''
   const token = authHeader.startsWith('Token ') ? authHeader.slice(6).trim() : ''
-  if (token && data.tokens[token]) {
-    delete data.tokens[token]
-    saveData()
-  }
+  await clearToken(token)
   res.status(204).send()
 })
 
 app.get('/api/auth/me/', authRequired, (req, res) => {
-  res.json({
-    id: req.user.id,
-    email: req.user.email,
-    full_name: req.user.first_name,
-  })
+  res.json(serializeUser(req.user))
 })
 
 app.use((req, res) => {
