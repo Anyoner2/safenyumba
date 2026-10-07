@@ -2,7 +2,7 @@ import { House } from 'lucide-react'
 import { Link, useLocation } from 'react-router-dom'
 
 function Footer() {
-  const isRegisterPage = useLocation().pathname.replace(/\/+$/, '') === '/register'
+  const isListPropertyPage = useLocation().pathname.replace(/\/+$/, '') === '/list-property'
 
   return (
     <footer className="footer">
@@ -18,8 +18,8 @@ function Footer() {
           <nav className="footer-nav" aria-label="Footer navigation">
             <Link to="/houses/">Find houses</Link>
             <Link to="/estates/">Explore estates</Link>
-            <Link to="/register/">List a property</Link>
-            {!isRegisterPage && <Link to="/login/">Login</Link>}
+            <Link to="/list-property/">List a property</Link>
+            {!isListPropertyPage && <Link to="/login/">Login</Link>}
           </nav>
         </div>
         <div className="footer-bottom">

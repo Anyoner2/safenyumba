@@ -336,6 +336,41 @@ img { display: block; max-width: 100%; }
 .auth-switch a { color: var(--green); font-weight: 700; text-decoration: none; }
 .form-message { margin-top: 15px; border-left: 3px solid var(--clay); padding: 10px 12px; background: #f5eee8; color: #70442f; font-size: 12px; line-height: 1.5; }
 
+.property-submit-page { padding: 58px 0 76px; background: #f7f9f6; }
+.property-submit-header { width: min(900px, calc(100% - 48px)); margin: 0 auto 30px; }
+.property-submit-header h1 { margin: 10px 0; font-family: var(--serif); font-size: 42px; font-weight: 400; line-height: 1.1; }
+.property-submit-header p { max-width: 650px; margin: 0; color: var(--muted); font-size: 14px; line-height: 1.6; }
+.property-submission-form { width: min(900px, calc(100% - 48px)); margin: 0 auto; border: 1px solid var(--line); padding: 10px 34px 30px; background: #fff; }
+.submission-section { padding: 26px 0; border-bottom: 1px solid var(--line); }
+.submission-section h2 { margin: 0 0 10px; font-size: 20px; }
+.submission-section h3 { margin: 0; font-size: 15px; }
+.submission-section h3 span { color: var(--green); }
+.submission-section-heading { margin-bottom: 18px; }
+.submission-section-heading p, .submission-help, .people-section-heading p { margin: 6px 0 0; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.property-field-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.property-field { display: flex; min-width: 0; flex-direction: column; gap: 7px; color: #4c5c53; font-size: 12px; font-weight: 700; }
+.property-field input, .property-field select { width: 100%; min-height: 44px; border: 1px solid #dce1d8; border-radius: 4px; padding: 0 11px; background: #fff; color: var(--ink); font: inherit; font-weight: 400; }
+.property-field input:focus, .property-field select:focus { outline: 2px solid var(--green); outline-offset: 1px; }
+.property-field-wide { grid-column: 1 / -1; }
+.unit-count-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.people-section { margin-top: 25px; }
+.people-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 12px; }
+.people-list { display: grid; gap: 12px; }
+.people-entry { min-width: 0; border: 1px solid var(--line); padding: 14px; }
+.people-entry legend { padding: 0 5px; color: var(--green); font-size: 12px; font-weight: 700; }
+.people-grid { gap: 12px; }
+.add-person-button { min-height: 38px; flex: 0 0 auto; padding: 0 12px; font-size: 12px; }
+.remove-person-button { display: inline-flex; align-items: center; gap: 6px; margin-top: 12px; border: 0; padding: 4px 0; background: transparent; color: #8a3e2f; cursor: pointer; font: inherit; font-size: 12px; }
+.legal-checklist { margin-top: 15px; border-top: 1px solid var(--line); }
+.legal-check-item { display: flex; align-items: flex-start; gap: 10px; border-bottom: 1px solid var(--line); padding: 12px 0; color: var(--ink); font-size: 13px; line-height: 1.5; }
+.legal-check-item input { width: 16px; height: 16px; flex: 0 0 16px; margin: 1px 0 0; accent-color: var(--green); }
+.legal-note { margin: 14px 0 0; color: var(--muted); font-size: 12px; line-height: 1.6; }
+.submission-consent { display: grid; gap: 0; }
+.submission-consent .legal-check-item { border: 0; padding: 5px 0; }
+.property-submit-actions { padding-top: 24px; }
+.property-submit-actions .form-submit { width: auto; min-width: 230px; }
+.submission-success { margin: 15px 0 0; border-left: 3px solid var(--green); padding: 10px 12px; background: #eef4ec; color: var(--green); font-size: 13px; line-height: 1.5; }
+
 @media (max-width: 900px) {
   .nav-inner { gap: 16px; }
   .nav-links { gap: 18px; }
@@ -386,4 +421,16 @@ img { display: block; max-width: 100%; }
   .auth-art { min-height: 250px; padding: 28px 22px; }
   .auth-art-copy h1 { font-size: 36px; }
   .auth-form-side { padding: 42px 22px 54px; }
+  .property-submit-page { padding: 40px 0 54px; }
+  .property-submit-header, .property-submission-form { width: calc(100% - 32px); }
+  .property-submit-header h1 { font-size: 34px; }
+  .property-submission-form { padding: 4px 18px 22px; }
+  .unit-count-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .people-section-heading { align-items: flex-start; flex-direction: column; }
+}
+
+@media (max-width: 420px) {
+  .property-field-grid, .unit-count-grid { grid-template-columns: 1fr; }
+  .property-field-wide { grid-column: auto; }
+  .property-submit-actions .form-submit { width: 100%; }
 }

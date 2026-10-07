@@ -22,7 +22,8 @@ if (databaseUrl) {
   }
 }
 
-const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {} }
+const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {}, propertySubmissions: [] }
+data.propertySubmissions ??= []
 
 const seedEstates = [
   {
@@ -135,6 +136,15 @@ async function initializeDatabase() {
       CREATE TABLE IF NOT EXISTS tokens (
         token TEXT PRIMARY KEY,
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE
+      );
+    `)
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_submissions (
+        id TEXT PRIMARY KEY,
+        payload JSONB NOT NULL,
+        status TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
 
@@ -331,6 +341,111 @@ app.get('/api/properties/', (req, res) => {
 
 app.get('/api/estates/', (req, res) => {
   res.json(seedEstates.map(buildEstatePayload))
+})
+
+app.post('/api/property-submissions/', async (req, res) => {
+  const body = req.body || {}
+  const errors = {}
+  const propertyTypes = new Set([
+    'apartment', 'flat', 'townhouse', 'maisonette', 'bungalow', 'bedsitter_block',
+    'single_room_block', 'mixed_use', 'other',
+  ])
+  const unitTypes = ['bedsitters', 'single_rooms', 'one_bedroom', 'two_bedrooms', 'three_bedrooms', 'four_plus_bedrooms']
+  const legalDocumentTypes = [
+    'ownership_proof', 'land_rates_clearance', 'land_rent_clearance', 'approved_building_plans',
+    'occupation_certificate', 'environmental_approval', 'management_authority', 'tax_compliance',
+  ]
+  const text = (value) => typeof value === 'string' ? value.trim() : ''
+  const propertyName = text(body.property_name)
+  const propertyType = text(body.property_type)
+  const city = text(body.city)
+  const area = text(body.area)
+  const streetAddress = text(body.street_address)
+  const tenure = text(body.tenure)
+
+  if (!propertyName) errors.property_name = ['Enter the property name.']
+  if (!propertyTypes.has(propertyType)) errors.property_type = ['Choose a supported property type.']
+  if (!city) errors.city = ['Enter the city or county.']
+  if (!area) errors.area = ['Enter the neighbourhood or area.']
+  if (!streetAddress) errors.street_address = ['Enter the physical address.']
+  if (!['freehold', 'leasehold', 'other'].includes(tenure)) errors.tenure = ['Choose the land tenure.']
+
+  const unitCounts = {}
+  for (const unitType of unitTypes) {
+    const value = Number(body.unit_counts?.[unitType] ?? 0)
+    if (!Number.isInteger(value) || value < 0 || value > 5000) {
+      errors.unit_counts = ['Unit counts must be whole numbers between 0 and 5,000.']
+      break
+    }
+    unitCounts[unitType] = value
+  }
+  if (Object.keys(unitCounts).length === unitTypes.length && !Object.values(unitCounts).some((count) => count > 0)) {
+    errors.unit_counts = ['Enter at least one unit.']
+  }
+
+  function validatePeople(people, label, requirePhone = false) {
+    if (!Array.isArray(people) || people.length < 1 || people.length > 20) {
+      errors[label] = [`Add between 1 and 20 ${label === 'owners' ? 'owners' : 'managers or caretakers'}.`]
+      return []
+    }
+
+    return people.map((person, index) => {
+      const fullName = text(person?.full_name)
+      const idNumber = text(person?.id_number)
+      const phone = text(person?.phone)
+      const role = text(person?.role)
+      if (!fullName || !idNumber || (requirePhone && !phone)) {
+        errors[label] = [`Enter a name and ID/passport number${requirePhone ? ', and phone number,' : ''} for each person.`]
+      }
+      if (label === 'managers' && !['property_manager', 'caretaker'].includes(role)) {
+        errors[label] = ['Choose property manager or caretaker for each person.']
+      }
+      return {
+        full_name: fullName.slice(0, 120),
+        id_number: idNumber.slice(0, 40),
+        ...(phone ? { phone: phone.slice(0, 40) } : {}),
+        ...(role ? { role } : {}),
+      }
+    })
+  }
+
+  const owners = validatePeople(body.owners, 'owners')
+  const managers = validatePeople(body.managers, 'managers', true)
+  if (body.ownership_authorized !== true) errors.ownership_authorized = ['Confirm you are authorized to submit the owner details.']
+  if (body.legal_acknowledgement !== true) errors.legal_acknowledgement = ['Confirm the legal information is accurate and can be verified.']
+
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const legalDocuments = Object.fromEntries(
+    legalDocumentTypes.map((documentType) => [documentType, body.legal_documents?.[documentType] === true]),
+  )
+  const submission = {
+    id: `property-${crypto.randomUUID()}`,
+    property_name: propertyName.slice(0, 160),
+    property_type: propertyType,
+    city: city.slice(0, 120),
+    area: area.slice(0, 120),
+    street_address: streetAddress.slice(0, 240),
+    tenure,
+    unit_counts: unitCounts,
+    owners,
+    managers,
+    legal_documents: legalDocuments,
+    status: 'pending_review',
+    submitted_at: new Date().toISOString(),
+  }
+
+  if (pool && databaseReady) {
+    await pool.query(
+      'INSERT INTO property_submissions (id, payload, status) VALUES ($1, $2, $3)',
+      [submission.id, JSON.stringify(submission), submission.status],
+    )
+  } else {
+    data.propertySubmissions.push(submission)
+    saveData()
+  }
+
+  res.status(201).json({ id: submission.id, status: submission.status })
 })
 
 app.post('/api/auth/register/', async (req, res) => {

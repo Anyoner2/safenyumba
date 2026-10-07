@@ -40,6 +40,10 @@ export function getEstates() {
   return request('/estates/')
 }
 
+export function submitProperty(property) {
+  return request('/property-submissions/', { method: 'POST', body: property })
+}
+
 export function registerAccount(account) {
   return request('/auth/register/', { method: 'POST', body: account })
 }

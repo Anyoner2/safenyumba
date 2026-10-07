@@ -7,12 +7,12 @@ const links = [
   { to: '/', label: 'Home', end: true },
   { to: '/houses/', label: 'Find Houses' },
   { to: '/estates/', label: 'Estates' },
-  { to: '/register/', label: 'List Property' },
+  { to: '/list-property/', label: 'List Property' },
 ]
 
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const isRegisterPage = useLocation().pathname.replace(/\/+$/, '') === '/register'
+  const isListPropertyPage = useLocation().pathname.replace(/\/+$/, '') === '/list-property'
   const { user, signOut } = useAuth()
   const userHandle = user?.email?.split('@')[0]
     || user?.full_name?.trim().replace(/\s+/g, '').toLowerCase()
@@ -58,7 +58,7 @@ function Navbar() {
               </>
             ) : (
               <>
-                {!isRegisterPage && <Link className="login-link" to="/login/" onClick={closeMenu}>Login</Link>}
+                {!isListPropertyPage && <Link className="login-link" to="/login/" onClick={closeMenu}>Login</Link>}
                 <Link className="button nav-signup" to="/register/" onClick={closeMenu}>Sign Up</Link>
               </>
             )}
@@ -72,7 +72,7 @@ function Navbar() {
             </>
           ) : (
             <>
-              {!isRegisterPage && <Link className="login-link" to="/login/">Login</Link>}
+              {!isListPropertyPage && <Link className="login-link" to="/login/">Login</Link>}
               <Link className="button nav-signup" to="/register/">Sign Up</Link>
             </>
           )}

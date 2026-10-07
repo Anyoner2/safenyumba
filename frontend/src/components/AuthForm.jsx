@@ -92,11 +92,10 @@ function AuthForm({ mode }) {
             {submitting ? 'Please wait...' : isRegister ? 'Create account' : 'Login'}
           </button>
           {error && <p className="form-message" role="alert">{error}</p>}
-          {!isRegister && (
-            <p className="auth-switch">
-              New to Safe Nyumba? <Link to="/register/">Create an account</Link>
-            </p>
-          )}
+          <p className="auth-switch">
+            {isRegister ? 'Already have an account? ' : 'New to Safe Nyumba? '}
+            <Link to={isRegister ? '/login/' : '/register/'}>{isRegister ? 'Login' : 'Create an account'}</Link>
+          </p>
         </form>
       </div>
     </section>
