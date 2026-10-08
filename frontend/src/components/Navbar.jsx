@@ -39,7 +39,7 @@ function Navbar() {
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <nav className={`nav-links${menuOpen ? ' is-open' : ''}`} aria-label="Main navigation">
-          {links.map((link) => (
+          {[...links, ...(user ? [{ to: '/rent-payments/', label: 'Rent payments' }] : [])].map((link) => (
             <NavLink
               key={link.to}
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}

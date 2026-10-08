@@ -22,8 +22,9 @@ if (databaseUrl) {
   }
 }
 
-const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {}, propertySubmissions: [] }
+const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {}, propertySubmissions: [], rentPayments: [] }
 data.propertySubmissions ??= []
+data.rentPayments ??= []
 
 const seedEstates = [
   {
@@ -195,6 +196,20 @@ async function initializeDatabase() {
         id TEXT PRIMARY KEY,
         payload JSONB NOT NULL,
         status TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rent_payments (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        tenant_name TEXT NOT NULL,
+        unit_name TEXT NOT NULL,
+        amount INTEGER NOT NULL CHECK (amount > 0),
+        period TEXT NOT NULL,
+        due_date DATE NOT NULL,
+        paid_at TIMESTAMPTZ,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
@@ -579,6 +594,103 @@ app.post('/api/auth/logout/', authRequired, async (req, res) => {
 
 app.get('/api/auth/me/', authRequired, (req, res) => {
   res.json(serializeUser(req.user))
+})
+
+app.get('/api/rent-payments/', authRequired, async (req, res) => {
+  let payments
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at
+       FROM rent_payments
+       WHERE user_id = $1
+       ORDER BY period DESC, due_date ASC, created_at DESC`,
+      [req.user.id],
+    )
+    payments = result.rows
+  } else {
+    payments = data.rentPayments
+      .filter((payment) => payment.user_id === req.user.id)
+      .sort((first, second) =>
+        second.period.localeCompare(first.period)
+        || first.due_date.localeCompare(second.due_date)
+        || second.created_at.localeCompare(first.created_at),
+      )
+  }
+
+  res.json(payments)
+})
+
+app.post('/api/rent-payments/', authRequired, async (req, res) => {
+  const body = req.body || {}
+  const tenantName = typeof body.tenant_name === 'string' ? body.tenant_name.trim() : ''
+  const unitName = typeof body.unit_name === 'string' ? body.unit_name.trim() : ''
+  const amount = Number(body.amount)
+  const period = typeof body.period === 'string' ? body.period : ''
+  const dueDate = typeof body.due_date === 'string' ? body.due_date : ''
+  const parsedDueDate = new Date(`${dueDate}T00:00:00Z`)
+  const errors = {}
+
+  if (!tenantName || tenantName.length > 120) errors.tenant_name = ['Enter a tenant name (up to 120 characters).']
+  if (!unitName || unitName.length > 120) errors.unit_name = ['Enter a unit or property name (up to 120 characters).']
+  if (!Number.isSafeInteger(amount) || amount < 1 || amount > 1000000000) {
+    errors.amount = ['Enter a whole amount between KES 1 and KES 1,000,000,000.']
+  }
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) errors.period = ['Choose a valid rent month.']
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)
+    || Number.isNaN(parsedDueDate.getTime())
+    || parsedDueDate.toISOString().slice(0, 10) !== dueDate) {
+    errors.due_date = ['Choose a valid due date.']
+  }
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const payment = {
+    id: `rent-${crypto.randomUUID()}`,
+    user_id: req.user.id,
+    tenant_name: tenantName,
+    unit_name: unitName,
+    amount,
+    period,
+    due_date: dueDate,
+    paid_at: null,
+    created_at: new Date().toISOString(),
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `INSERT INTO rent_payments (id, user_id, tenant_name, unit_name, amount, period, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at`,
+      [payment.id, payment.user_id, payment.tenant_name, payment.unit_name, payment.amount, payment.period, payment.due_date],
+    )
+    return res.status(201).json(result.rows[0])
+  }
+
+  data.rentPayments.push(payment)
+  saveData()
+  res.status(201).json(payment)
+})
+
+app.patch('/api/rent-payments/:id/paid/', authRequired, async (req, res) => {
+  const paidAt = new Date().toISOString()
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `UPDATE rent_payments
+       SET paid_at = $1
+       WHERE id = $2 AND user_id = $3
+       RETURNING id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at`,
+      [paidAt, req.params.id, req.user.id],
+    )
+    if (!result.rowCount) return res.status(404).json({ detail: 'Rent payment not found.' })
+    return res.json(result.rows[0])
+  }
+
+  const payment = data.rentPayments.find(
+    (entry) => entry.id === req.params.id && entry.user_id === req.user.id,
+  )
+  if (!payment) return res.status(404).json({ detail: 'Rent payment not found.' })
+  payment.paid_at = paidAt
+  saveData()
+  res.json(payment)
 })
 
 app.use((req, res) => {

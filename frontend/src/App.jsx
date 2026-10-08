@@ -7,6 +7,7 @@ import Houses from './pages/Houses.jsx'
 import Login from './pages/Login.jsx'
 import ListProperty from './pages/ListProperty.jsx'
 import Register from './pages/Register.jsx'
+import RentPayments from './pages/RentPayments.jsx'
 import { AuthProvider } from './auth.jsx'
 import './App.css'
 
@@ -21,6 +22,7 @@ function App() {
             <Route path="/houses" element={<Houses />} />
             <Route path="/estates" element={<Estates />} />
             <Route path="/list-property" element={<ListProperty />} />
+            <Route path="/rent-payments" element={<RentPayments />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />

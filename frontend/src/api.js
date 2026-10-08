@@ -59,3 +59,15 @@ export function getCurrentUser() {
 export function logoutAccount() {
   return request('/auth/logout/', { method: 'POST' })
 }
+
+export function getRentPayments() {
+  return request('/rent-payments/')
+}
+
+export function createRentPayment(payment) {
+  return request('/rent-payments/', { method: 'POST', body: payment })
+}
+
+export function markRentPaymentPaid(id) {
+  return request(`/rent-payments/${encodeURIComponent(id)}/paid/`, { method: 'PATCH' })
+}

@@ -1,11 +1,12 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { loginAccount, registerAccount } from '../api.js'
 import { useAuth } from '../auth.jsx'
 
 function AuthForm({ mode }) {
   const isRegister = mode === 'register'
   const navigate = useNavigate()
+  const location = useLocation()
   const { signIn } = useAuth()
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
@@ -34,7 +35,7 @@ function AuthForm({ mode }) {
         ? await registerAccount({ ...credentials, full_name: form.get('name'), confirm_password: form.get('confirm_password') })
         : await loginAccount(credentials)
       signIn(result.token, result.user)
-      navigate('/', { replace: true })
+      navigate(location.state?.from || '/', { replace: true })
     } catch (requestError) {
       setError(requestError.message)
     } finally {
