@@ -112,6 +112,57 @@ const seedProperties = [
   },
 ]
 
+const nairobiNeighbourhoodHomes = [
+  ['kilimani-one-bedroom', 'Kilimani', 42000, 1, 'Flat'],
+  ['westlands-one-bedroom', 'Westlands', 48000, 1, 'Apartment'],
+  ['kileleshwa-one-bedroom', 'Kileleshwa', 45000, 1, 'Flat'],
+  ['karen-two-bedroom', 'Karen', 75000, 2, 'Apartment'],
+  ['nairobi-cbd-one-bedroom', 'Nairobi CBD', 25000, 1, 'Flat'],
+  ['ngara-one-bedroom', 'Ngara', 18000, 1, 'Flat'],
+  ['pangani-one-bedroom', 'Pangani', 20000, 1, 'Apartment'],
+  ['eastleigh-one-bedroom', 'Eastleigh', 22000, 1, 'Flat'],
+  ['south-b-one-bedroom', 'South B', 28000, 1, 'Apartment'],
+  ['south-b-two-bedroom', 'South B', 45000, 2, 'Flat'],
+  ['south-c-one-bedroom', 'South C', 32000, 1, 'Apartment'],
+  ["langata-one-bedroom", "Lang'ata", 28000, 1, 'Flat'],
+  ['embakasi-one-bedroom', 'Embakasi', 18000, 1, 'Flat'],
+  ['umoja-one-bedroom', 'Umoja', 16000, 1, 'Flat'],
+  ['donholm-one-bedroom', 'Donholm', 20000, 1, 'Apartment'],
+  ['buruburu-two-bedroom', 'Buruburu', 38000, 2, 'Flat'],
+  ['kasarani-one-bedroom', 'Kasarani', 18000, 1, 'Flat'],
+  ['roysambu-one-bedroom', 'Roysambu', 22000, 1, 'Apartment'],
+  ['zimmerman-one-bedroom', 'Zimmerman', 14000, 1, 'Flat'],
+  ['kahawa-west-one-bedroom', 'Kahawa West', 13000, 1, 'Flat'],
+  ['ruai-one-bedroom', 'Ruai', 15000, 1, 'Flat'],
+  ['parklands-one-bedroom', 'Parklands', 35000, 1, 'Apartment'],
+  ['lavington-one-bedroom', 'Lavington', 43000, 1, 'Flat'],
+  ['hurlingham-one-bedroom', 'Hurlingham', 32000, 1, 'Apartment'],
+  ['upper-hill-one-bedroom', 'Upper Hill', 40000, 1, 'Apartment'],
+  ['runda-two-bedroom', 'Runda', 95000, 2, 'Townhouse'],
+  ['muthaiga-two-bedroom', 'Muthaiga', 80000, 2, 'Apartment'],
+].map(([slug, location, rent, bedrooms, kind], index) => ({
+  slug,
+  estate: slug.split('-').slice(0, -2).join('-') || slug.split('-')[0],
+  title: `${location} ${bedrooms}-bedroom ${kind.toLowerCase()}`,
+  location,
+  city: 'Nairobi',
+  rent,
+  bedrooms,
+  amenity: 'Secure entry, nearby shops',
+  kind,
+  verified: true,
+  vacant: true,
+  image: [
+    'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
+    'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
+  ][index % 4],
+  image_alt: `A ${bedrooms}-bedroom home in ${location}`,
+}))
+
+seedProperties.push(...nairobiNeighbourhoodHomes)
+
 function saveData() {
   globalThis.__safeNyumbaData = data
 }

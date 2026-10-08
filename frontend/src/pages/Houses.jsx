@@ -30,7 +30,7 @@ function Houses() {
         <div>
           <span className="eyebrow">Verified and available</span>
           <h1 className="page-title">{location ? `Homes in ${location}` : 'Find your next home'}</h1>
-          <p>Browse vacant homes with clear prices, useful details, and local verification.</p>
+          <p>Browse vacant homes across Nairobi neighbourhoods. Rent varies by area, size, and amenities; confirm the final price with the property manager.</p>
         </div>
         <span className="result-count">{loading ? 'Loading homes...' : error ? 'Could not load homes' : `${results.length} ${results.length === 1 ? 'home' : 'homes'} found`}</span>
       </div>

@@ -23,19 +23,43 @@ function SearchBar() {
         <div className="search-field">
           <label htmlFor="search-location">Where?</label>
           <select id="search-location" value={location} onChange={(event) => setLocation(event.target.value)}>
-            <option value="">Any location</option>
-            <option value="Kilimani">Kilimani</option>
-            <option value="Westlands">Westlands</option>
-            <option value="Kileleshwa">Kileleshwa</option>
-            <option value="Karen">Karen</option>
-            <option value="Ruiru">Ruiru</option>
-            <option value="Mombasa">Mombasa</option>
+            <option value="">Any neighbourhood</option>
+            <optgroup label="Nairobi neighbourhoods">
+              <option value="Buruburu">Buruburu</option>
+              <option value="Donholm">Donholm</option>
+              <option value="Eastleigh">Eastleigh</option>
+              <option value="Embakasi">Embakasi</option>
+              <option value="Hurlingham">Hurlingham</option>
+              <option value="Kahawa West">Kahawa West</option>
+              <option value="Karen">Karen</option>
+              <option value="Kasarani">Kasarani</option>
+              <option value="Kileleshwa">Kileleshwa</option>
+              <option value="Kilimani">Kilimani</option>
+              <option value="Lang'ata">Lang'ata</option>
+              <option value="Lavington">Lavington</option>
+              <option value="Muthaiga">Muthaiga</option>
+              <option value="Nairobi CBD">Nairobi CBD</option>
+              <option value="Ngara">Ngara</option>
+              <option value="Pangani">Pangani</option>
+              <option value="Parklands">Parklands</option>
+              <option value="Roysambu">Roysambu</option>
+              <option value="Ruai">Ruai</option>
+              <option value="Runda">Runda</option>
+              <option value="South B">South B</option>
+              <option value="South C">South C</option>
+              <option value="Umoja">Umoja</option>
+              <option value="Upper Hill">Upper Hill</option>
+              <option value="Westlands">Westlands</option>
+              <option value="Zimmerman">Zimmerman</option>
+            </optgroup>
           </select>
         </div>
         <div className="search-field">
           <label htmlFor="search-budget">Monthly budget</label>
           <select id="search-budget" value={budget} onChange={(event) => setBudget(event.target.value)}>
             <option value="">Any budget</option>
+            <option value="20000">Up to KSh 20,000</option>
+            <option value="30000">Up to KSh 30,000</option>
             <option value="50000">Up to KSh 50,000</option>
             <option value="80000">Up to KSh 80,000</option>
             <option value="120000">Up to KSh 120,000</option>

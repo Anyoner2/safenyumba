@@ -67,3 +67,32 @@ test('property submissions reject empty unit counts', async () => {
     server.close()
   }
 })
+
+test('Nairobi neighbourhood searches return area-matched homes within budget', async () => {
+  const { server, baseUrl } = await startServer()
+  const neighbourhoods = [
+    'Buruburu', 'Donholm', 'Eastleigh', 'Embakasi', 'Hurlingham', 'Kahawa West',
+    'Karen', 'Kasarani', 'Kileleshwa', 'Kilimani', "Lang'ata", 'Lavington',
+    'Muthaiga', 'Nairobi CBD', 'Ngara', 'Pangani', 'Parklands', 'Roysambu',
+    'Ruai', 'Runda', 'South B', 'South C', 'Umoja', 'Upper Hill', 'Westlands',
+    'Zimmerman',
+  ]
+
+  try {
+    const responses = await Promise.all(neighbourhoods.map((neighbourhood) =>
+      fetch(`${baseUrl}/api/properties/?location=${encodeURIComponent(neighbourhood)}`),
+    ))
+    const neighbourhoodHomes = await Promise.all(responses.map((response) => response.json()))
+    const affordableResponse = await fetch(`${baseUrl}/api/properties/?location=Umoja&budget=20000`)
+    const affordableHomes = await affordableResponse.json()
+
+    assert.ok(responses.every((response) => response.status === 200))
+    assert.ok(neighbourhoodHomes.every((homes, index) =>
+      homes.some((home) => home.location === neighbourhoods[index]),
+    ))
+    assert.ok(affordableHomes.length > 0)
+    assert.ok(affordableHomes.every((home) => home.location === 'Umoja' && home.rent <= 20000))
+  } finally {
+    server.close()
+  }
+})
