@@ -16,6 +16,7 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 - `GET /api/health/`
 - `GET /api/properties/` with optional `location`, `budget`, and `bedrooms` query parameters
 - `GET /api/estates/`
+- `POST /api/property-submissions/` accepts optional `latitude` and `longitude` GPS coordinates
 - `POST /api/auth/register/`
 - `POST /api/auth/login/`
 - `GET /api/auth/me/` and `POST /api/auth/logout/` with a token
@@ -33,5 +34,7 @@ WHERE email = 'manager@example.com';
 Supported estate slugs are `kilimani`, `westlands`, and `muthaiga`. Estate managers see portfolio and rent aggregates for their assigned estate only. Occupancy is an estimate based on current-month rent-tracked units and verified vacant listings.
 
 Rent records belong to the authenticated landlord account. Link each record to an estate to include it in that estate's aggregate dashboard. With `DATABASE_URL` configured, the API stores accounts and records in PostgreSQL; without it, the development server uses an in-memory store.
+
+Property owners can capture GPS coordinates in the browser or place a pin on the OpenStreetMap widget while submitting a property. Coordinates are optional, validated as a latitude/longitude pair, and stored only with the private submission for verification. Public sample listing pins are approximate neighbourhood locations, not property addresses. OpenStreetMap receives requests for the map tiles covering the visible area, including when a GPS pin recentres the map; the submitted coordinates themselves are not included in the submission response or public property listings. OpenStreetMap tiles require an internet connection and display OpenStreetMap attribution; browser GPS permission requires a secure context (HTTPS or localhost).
 
 For production, import the GitHub repository into Vercel and set `backend` as the Vercel project's root directory. Add a persistent PostgreSQL database integration and set `DATABASE_URL` to its pooled connection string. Finally, set `VITE_API_URL` in the frontend deployment environment to the API's HTTPS URL and publish the frontend again. Vercel's function filesystem is not persistent, so production must use PostgreSQL.

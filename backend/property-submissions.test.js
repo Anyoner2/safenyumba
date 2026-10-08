@@ -68,6 +68,44 @@ test('property submissions reject empty unit counts', async () => {
   }
 })
 
+test('property submissions accept complete GPS coordinates and reject out-of-range locations', async () => {
+  const { server, baseUrl } = await startServer()
+
+  try {
+    const response = await fetch(`${baseUrl}/api/property-submissions/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validSubmission, latitude: -1.2921, longitude: 36.7875 }),
+    })
+    assert.equal(response.status, 201)
+    const { id } = await response.json()
+    const stored = globalThis.__safeNyumbaData.propertySubmissions.find((submission) =>
+      submission.id === id,
+    )
+    assert.equal(stored.latitude, -1.2921)
+    assert.equal(stored.longitude, 36.7875)
+    assert.equal(stored.location_accuracy, 'gps')
+
+    const invalidResponse = await fetch(`${baseUrl}/api/property-submissions/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validSubmission, latitude: 91, longitude: 36.7875 }),
+    })
+    assert.equal(invalidResponse.status, 400)
+    assert.match(JSON.stringify(await invalidResponse.json()), /latitude/i)
+
+    const incompleteResponse = await fetch(`${baseUrl}/api/property-submissions/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...validSubmission, latitude: -1.2921 }),
+    })
+    assert.equal(incompleteResponse.status, 400)
+    assert.match(JSON.stringify(await incompleteResponse.json()), /both GPS coordinates/i)
+  } finally {
+    server.close()
+  }
+})
+
 test('Nairobi neighbourhood searches return area-matched homes within budget', async () => {
   const { server, baseUrl } = await startServer()
   const neighbourhoods = [
@@ -92,6 +130,12 @@ test('Nairobi neighbourhood searches return area-matched homes within budget', a
     ))
     assert.ok(affordableHomes.length > 0)
     assert.ok(affordableHomes.every((home) => home.location === 'Umoja' && home.rent <= 20000))
+    const mappedHomes = await (await fetch(`${baseUrl}/api/properties/`)).json()
+    assert.ok(mappedHomes.some((home) => home.locationAccuracy === 'area' && Number.isFinite(home.latitude)))
+    assert.ok(mappedHomes.every((home) =>
+      (home.latitude === undefined && home.longitude === undefined)
+      || (Number.isFinite(home.latitude) && Number.isFinite(home.longitude)),
+    ))
   } finally {
     server.close()
   }

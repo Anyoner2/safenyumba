@@ -57,6 +57,9 @@ const seedProperties = [
     title: 'Kilimani apartment',
     location: 'Kilimani',
     city: 'Nairobi',
+    latitude: -1.2921,
+    longitude: 36.7875,
+    location_accuracy: 'area',
     rent: 68000,
     bedrooms: 2,
     amenity: 'Lift, security',
@@ -72,6 +75,9 @@ const seedProperties = [
     title: 'Kilimani family home',
     location: 'Kilimani',
     city: 'Nairobi',
+    latitude: -1.2869,
+    longitude: 36.7833,
+    location_accuracy: 'area',
     rent: 110000,
     bedrooms: 3,
     amenity: 'Garden, parking',
@@ -87,6 +93,9 @@ const seedProperties = [
     title: 'Westlands loft rental',
     location: 'Westlands',
     city: 'Nairobi',
+    latitude: -1.2676,
+    longitude: 36.8108,
+    location_accuracy: 'area',
     rent: 94000,
     bedrooms: 2,
     amenity: 'Gym, balcony',
@@ -102,6 +111,9 @@ const seedProperties = [
     title: 'Muthaiga bungalow',
     location: 'Muthaiga',
     city: 'Nairobi',
+    latitude: -1.2465,
+    longitude: 36.8325,
+    location_accuracy: 'area',
     rent: 145000,
     bedrooms: 4,
     amenity: 'Garden, servant quarter',
@@ -325,6 +337,11 @@ function buildPropertyPayload(property) {
     title: property.title,
     location: property.location,
     city: property.city,
+    ...(Number.isFinite(property.latitude) && Number.isFinite(property.longitude) ? {
+      latitude: property.latitude,
+      longitude: property.longitude,
+      locationAccuracy: property.location_accuracy || 'gps',
+    } : {}),
     rent: property.rent,
     bedrooms: property.bedrooms,
     amenity: property.amenity,
@@ -483,6 +500,10 @@ app.post('/api/property-submissions/', async (req, res) => {
   const area = text(body.area)
   const streetAddress = text(body.street_address)
   const tenure = text(body.tenure)
+  const hasLatitude = body.latitude !== undefined && body.latitude !== null && body.latitude !== ''
+  const hasLongitude = body.longitude !== undefined && body.longitude !== null && body.longitude !== ''
+  const latitude = Number(body.latitude)
+  const longitude = Number(body.longitude)
 
   if (!propertyName) errors.property_name = ['Enter the property name.']
   if (!propertyTypes.has(propertyType)) errors.property_type = ['Choose a supported property type.']
@@ -490,6 +511,13 @@ app.post('/api/property-submissions/', async (req, res) => {
   if (!area) errors.area = ['Enter the neighbourhood or area.']
   if (!streetAddress) errors.street_address = ['Enter the physical address.']
   if (!['freehold', 'leasehold', 'other'].includes(tenure)) errors.tenure = ['Choose the land tenure.']
+  if (hasLatitude !== hasLongitude) errors.location = ['Provide both GPS coordinates together.']
+  if (hasLatitude && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90)) {
+    errors.latitude = ['Enter a valid latitude between -90 and 90.']
+  }
+  if (hasLongitude && (!Number.isFinite(longitude) || longitude < -180 || longitude > 180)) {
+    errors.longitude = ['Enter a valid longitude between -180 and 180.']
+  }
 
   const unitCounts = {}
   for (const unitType of unitTypes) {
@@ -547,6 +575,9 @@ app.post('/api/property-submissions/', async (req, res) => {
     city: city.slice(0, 120),
     area: area.slice(0, 120),
     street_address: streetAddress.slice(0, 240),
+    ...(hasLatitude && hasLongitude && !errors.latitude && !errors.longitude
+      ? { latitude, longitude, location_accuracy: 'gps' }
+      : {}),
     tenure,
     unit_counts: unitCounts,
     owners,

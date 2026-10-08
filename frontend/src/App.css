@@ -423,6 +423,24 @@ img { display: block; max-width: 100%; }
 .estate-dashboard-property p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
 .estate-dashboard-property > strong { color: var(--green); font-size: 13px; white-space: nowrap; }
 .estate-dashboard-property > strong span { color: var(--muted); font-size: 10px; font-weight: 400; }
+.property-map { position: relative; z-index: 0; width: 100%; min-height: 300px; overflow: hidden; border: 1px solid var(--line); background: #e9eee5; }
+.property-map-canvas { width: 100%; height: 360px; min-height: 300px; }
+.property-map-canvas.is-selectable { cursor: crosshair; }
+.map-attribution-note { position: absolute; right: 6px; bottom: 6px; z-index: 500; border-radius: 2px; padding: 3px 5px; background: rgba(255,255,255,.88); color: #4e5e54; font-size: 9px; pointer-events: none; }
+.houses-map-section { margin: -4px 0 28px; }
+.houses-map-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; margin-bottom: 10px; }
+.houses-map-heading h2 { margin: 0; font-size: 17px; }
+.houses-map-heading p { margin: 0; color: var(--muted); font-size: 11px; }
+.location-section-heading { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.location-section-heading > div { max-width: 620px; }
+.gps-button { min-height: 42px; flex: 0 0 auto; }
+.gps-button:disabled { cursor: wait; opacity: .65; }
+.selected-location { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 10px; color: var(--muted); font-size: 11px; }
+.selected-location .remove-person-button { flex: 0 0 auto; margin: 0; }
+.location-feedback { margin: 9px 0 0; color: var(--green); font-size: 11px; }
+.estate-dashboard-map { margin-bottom: 18px; }
+.leaflet-container { z-index: 0; font-family: 'DM Sans', sans-serif; }
+.leaflet-control-attribution { font-size: 9px !important; }
 
 @media (max-width: 900px) {
   .nav-inner { gap: 16px; }
@@ -505,4 +523,8 @@ img { display: block; max-width: 100%; }
   .estate-dashboard-property > strong { grid-column: 1; }
   .estate-dashboard-property > .rent-status { grid-column: 2; grid-row: 2; }
   .dashboard-panel-heading { align-items: flex-start; flex-direction: column; }
+  .location-section-heading, .houses-map-heading { align-items: flex-start; flex-direction: column; }
+  .gps-button { width: 100%; }
+  .selected-location { align-items: flex-start; flex-direction: column; }
+  .property-map-canvas { height: 300px; }
 }

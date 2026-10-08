@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { getProperties } from '../api.js'
 import PropertyCard from '../components/PropertyCard.jsx'
+import PropertyMap from '../components/PropertyMap.jsx'
 
 function Houses() {
   const [searchParams] = useSearchParams()
@@ -11,6 +12,9 @@ function Houses() {
   const loading = response.query !== queryString
   const results = loading ? [] : response.items
   const error = loading ? '' : response.error
+  const mappedProperties = results.filter((property) =>
+    Number.isFinite(property.latitude) && Number.isFinite(property.longitude),
+  )
 
   useEffect(() => {
     let active = true
@@ -34,6 +38,15 @@ function Houses() {
         </div>
         <span className="result-count">{loading ? 'Loading homes...' : error ? 'Could not load homes' : `${results.length} ${results.length === 1 ? 'home' : 'homes'} found`}</span>
       </div>
+      {!loading && !error && mappedProperties.length > 0 && (
+        <section className="houses-map-section" aria-label="Map of homes with available locations">
+          <div className="houses-map-heading">
+            <h2>Explore on the map</h2>
+            <p>Map pins show the approximate neighbourhood, not an exact property address.</p>
+          </div>
+          <PropertyMap properties={mappedProperties} />
+        </section>
+      )}
       <div className="property-grid">
         {error ? <p className="empty-state" role="alert">Homes are unavailable: {error}</p> : null}
         {loading && !error ? <p className="empty-state" role="status">Loading homes...</p> : null}

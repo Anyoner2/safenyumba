@@ -3,6 +3,7 @@ import { Building2, CircleDollarSign, Home, Percent, Wallet } from 'lucide-react
 import { Navigate, useLocation } from 'react-router-dom'
 import { getEstateDashboard } from '../api.js'
 import { useAuth } from '../auth.jsx'
+import PropertyMap from '../components/PropertyMap.jsx'
 
 const currency = new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 })
 
@@ -75,6 +76,14 @@ function EstateDashboard() {
                   <p>{dashboard.properties.length} listed {dashboard.properties.length === 1 ? 'property' : 'properties'}</p>
                 </div>
               </div>
+              {dashboard.properties.some((property) =>
+                Number.isFinite(property.latitude) && Number.isFinite(property.longitude),
+              ) && (
+                <PropertyMap
+                  className="estate-dashboard-map"
+                  properties={dashboard.properties}
+                />
+              )}
               {dashboard.properties.length ? (
                 <div className="estate-dashboard-properties">
                   {dashboard.properties.map((property) => (

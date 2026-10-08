@@ -1,6 +1,7 @@
 import { useState } from 'react'
-import { Plus, Trash2 } from 'lucide-react'
+import { LocateFixed, Plus, Trash2 } from 'lucide-react'
 import { submitProperty } from '../api.js'
+import PropertyMap from '../components/PropertyMap.jsx'
 
 const unitTypes = [
   { name: 'bedsitters', label: 'Bedsitters' },
@@ -115,6 +116,39 @@ function ListProperty() {
   const [error, setError] = useState('')
   const [receipt, setReceipt] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [location, setLocation] = useState(null)
+  const [locating, setLocating] = useState(false)
+  const [locationMessage, setLocationMessage] = useState('')
+
+  function useCurrentLocation() {
+    setLocationMessage('')
+    if (!navigator.geolocation) {
+      setLocationMessage('GPS location is not available in this browser.')
+      return
+    }
+
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => {
+        setLocation({
+          latitude: Number(coords.latitude.toFixed(6)),
+          longitude: Number(coords.longitude.toFixed(6)),
+        })
+        setLocationMessage('GPS location added. You can adjust the pin by selecting the map.')
+        setLocating(false)
+      },
+      (geoError) => {
+        const message = geoError.code === geoError.PERMISSION_DENIED
+          ? 'Location permission was denied. Enable it in your browser to use GPS.'
+          : geoError.code === geoError.POSITION_UNAVAILABLE
+            ? 'Your current location could not be determined. Try again or choose a map point.'
+            : 'GPS lookup timed out. Try again or choose a map point.'
+        setLocationMessage(message)
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    )
+  }
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -129,6 +163,7 @@ function ListProperty() {
       city: form.get('city'),
       area: form.get('area'),
       street_address: form.get('street_address'),
+      ...(location ? { latitude: location.latitude, longitude: location.longitude } : {}),
       tenure: form.get('tenure'),
       unit_counts: Object.fromEntries(unitTypes.map(({ name }) => [name, Number(form.get(name) || 0)])),
       owners: owners.map(({ full_name, id_number }) => ({ full_name, id_number })),
@@ -201,6 +236,33 @@ function ListProperty() {
               </select>
             </label>
           </div>
+        </section>
+
+        <section className="submission-section" aria-labelledby="property-location-heading">
+          <div className="submission-section-heading location-section-heading">
+            <div>
+              <h2 id="property-location-heading">Property GPS location</h2>
+              <p>Use your device GPS or select the property location on the map. Coordinates are stored with your private submission for verification and are not shown on public listings. OpenStreetMap receives requests for the map area currently in view.</p>
+            </div>
+            <button className="button button-light gps-button" type="button" onClick={useCurrentLocation} disabled={locating}>
+              <LocateFixed size={17} aria-hidden="true" />
+              {locating ? 'Finding location...' : 'Use my GPS'}
+            </button>
+          </div>
+          <PropertyMap location={location} onSelect={(point) => {
+            setLocation(point)
+            setLocationMessage('Map pin updated.')
+          }} />
+          <div className="selected-location">
+            {location
+              ? <span>Selected: {location.latitude.toFixed(6)}, {location.longitude.toFixed(6)}</span>
+              : <span>No GPS location selected. You can still submit without coordinates.</span>}
+            {location && <button className="remove-person-button" type="button" onClick={() => {
+              setLocation(null)
+              setLocationMessage('GPS location removed.')
+            }}>Remove location</button>}
+          </div>
+          {locationMessage && <p className="location-feedback" role="status">{locationMessage}</p>}
         </section>
 
         <section className="submission-section" aria-labelledby="unit-mix-heading">
