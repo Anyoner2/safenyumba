@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, CircleDollarSign } from 'lucide-react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth.jsx'
-import { createRentPayment, getRentPayments, markRentPaymentPaid } from '../api.js'
+import { createRentPayment, getEstates, getRentPayments, markRentPaymentPaid } from '../api.js'
 
 const currency = new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 })
 
@@ -28,6 +28,7 @@ function RentPayments() {
   const { user } = useAuth()
   const location = useLocation()
   const [payments, setPayments] = useState([])
+  const [estates, setEstates] = useState([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
   const [updatingId, setUpdatingId] = useState('')
@@ -38,9 +39,12 @@ function RentPayments() {
 
   useEffect(() => {
     let active = true
-    getRentPayments()
-      .then((items) => {
-        if (active) setPayments(sortPayments(items))
+    Promise.all([getRentPayments(), getEstates()])
+      .then(([items, estateItems]) => {
+        if (active) {
+          setPayments(sortPayments(items))
+          setEstates(estateItems)
+        }
       })
       .catch((requestError) => {
         if (active) setError(requestError.message)
@@ -61,6 +65,7 @@ function RentPayments() {
   if (!user) {
     return <Navigate to="/login/" replace state={{ from: location.pathname }} />
   }
+  if (user.role !== 'landlord') return <Navigate to="/estate-dashboard/" replace />
 
   async function handleSubmit(event) {
     event.preventDefault()
@@ -72,6 +77,7 @@ function RentPayments() {
     const payment = {
       tenant_name: form.get('tenant_name'),
       unit_name: form.get('unit_name'),
+      estate_slug: form.get('estate_slug') || null,
       amount: Number(form.get('amount')),
       period: form.get('period'),
       due_date: form.get('due_date'),
@@ -144,6 +150,13 @@ function RentPayments() {
               <label className="property-field">
                 <span>Unit or property</span>
                 <input name="unit_name" maxLength="120" placeholder="e.g. Block A, Unit 4" required />
+              </label>
+              <label className="property-field">
+                <span>Estate (optional)</span>
+                <select name="estate_slug" defaultValue="">
+                  <option value="">Not linked to an estate</option>
+                  {estates.map((estate) => <option value={estate.slug} key={estate.slug}>{estate.name}</option>)}
+                </select>
               </label>
               <label className="property-field">
                 <span>Rent amount (KES)</span>

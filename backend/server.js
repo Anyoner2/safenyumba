@@ -180,9 +180,13 @@ async function initializeDatabase() {
         id TEXT PRIMARY KEY,
         first_name TEXT NOT NULL,
         email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL
+        password_hash TEXT NOT NULL,
+        role TEXT NOT NULL DEFAULT 'landlord',
+        managed_estate TEXT
       );
     `)
+    await pool.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'landlord'")
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_estate TEXT')
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS tokens (
@@ -206,6 +210,7 @@ async function initializeDatabase() {
         user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
         tenant_name TEXT NOT NULL,
         unit_name TEXT NOT NULL,
+        estate_slug TEXT,
         amount INTEGER NOT NULL CHECK (amount > 0),
         period TEXT NOT NULL,
         due_date DATE NOT NULL,
@@ -213,6 +218,7 @@ async function initializeDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
+    await pool.query('ALTER TABLE rent_payments ADD COLUMN IF NOT EXISTS estate_slug TEXT')
 
     databaseReady = true
     return true
@@ -239,6 +245,8 @@ function serializeUser(user) {
     id: user.id,
     email: user.email,
     full_name: user.first_name,
+    role: user.role || 'landlord',
+    managed_estate: user.managed_estate || null,
   }
 }
 
@@ -342,6 +350,53 @@ async function authRequired(req, res, next) {
 
   req.user = user
   next()
+}
+
+function roleRequired(role, message) {
+  return (req, res, next) => {
+    if ((req.user.role || 'landlord') !== role) {
+      return res.status(403).json({ detail: message })
+    }
+    next()
+  }
+}
+
+function sortRentPayments(payments) {
+  return payments.sort((first, second) =>
+    second.period.localeCompare(first.period)
+    || first.due_date.localeCompare(second.due_date)
+    || second.created_at.localeCompare(first.created_at),
+  )
+}
+
+async function getRentPaymentsForUser(userId) {
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT id, tenant_name, unit_name, estate_slug, amount, period, due_date, paid_at, created_at
+       FROM rent_payments
+       WHERE user_id = $1
+       ORDER BY period DESC, due_date ASC, created_at DESC`,
+      [userId],
+    )
+    return result.rows
+  }
+
+  return sortRentPayments(data.rentPayments.filter((payment) => payment.user_id === userId))
+}
+
+async function getRentPaymentsForEstate(estateSlug) {
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT unit_name, amount, period, due_date, paid_at, created_at
+       FROM rent_payments
+       WHERE estate_slug = $1
+       ORDER BY period DESC, due_date ASC, created_at DESC`,
+      [estateSlug],
+    )
+    return result.rows
+  }
+
+  return sortRentPayments(data.rentPayments.filter((payment) => payment.estate_slug === estateSlug))
 }
 
 await initializeDatabase()
@@ -544,12 +599,14 @@ app.post('/api/auth/register/', async (req, res) => {
     first_name: String(full_name).trim(),
     email: normalizedEmail,
     password: hashPassword(String(password)),
+    role: 'landlord',
+    managed_estate: null,
   }
 
   if (pool && databaseReady) {
     await pool.query(
-      'INSERT INTO users (id, first_name, email, password_hash) VALUES ($1, $2, $3, $4)',
-      [user.id, user.first_name, user.email, user.password],
+      'INSERT INTO users (id, first_name, email, password_hash, role, managed_estate) VALUES ($1, $2, $3, $4, $5, $6)',
+      [user.id, user.first_name, user.email, user.password, user.role, user.managed_estate],
     )
   } else {
     data.users.push(user)
@@ -596,37 +653,97 @@ app.get('/api/auth/me/', authRequired, (req, res) => {
   res.json(serializeUser(req.user))
 })
 
-app.get('/api/rent-payments/', authRequired, async (req, res) => {
-  let payments
-  if (pool && databaseReady) {
-    const result = await pool.query(
-      `SELECT id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at
-       FROM rent_payments
-       WHERE user_id = $1
-       ORDER BY period DESC, due_date ASC, created_at DESC`,
-      [req.user.id],
-    )
-    payments = result.rows
-  } else {
-    payments = data.rentPayments
-      .filter((payment) => payment.user_id === req.user.id)
-      .sort((first, second) =>
-        second.period.localeCompare(first.period)
-        || first.due_date.localeCompare(second.due_date)
-        || second.created_at.localeCompare(first.created_at),
-      )
-  }
+app.get('/api/dashboard/landlord/', authRequired, roleRequired('landlord', 'This dashboard is for landlord accounts.'), async (req, res) => {
+  const payments = await getRentPaymentsForUser(req.user.id)
+  const now = new Date()
+  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const today = now.toISOString().slice(0, 10)
+  const currentMonth = payments.filter((payment) => payment.period === currentPeriod)
+  const activeUnits = new Set(
+    currentMonth.map((payment) => `${payment.estate_slug || ''}:${payment.unit_name}`),
+  )
+  const summary = payments.reduce((totals, payment) => {
+    if (payment.paid_at) totals.received += Number(payment.amount)
+    else {
+      totals.outstanding += Number(payment.amount)
+      if (payment.due_date < today) totals.overdue += Number(payment.amount)
+    }
+    return totals
+  }, { received: 0, outstanding: 0, overdue: 0 })
 
-  res.json(payments)
+  res.json({
+    summary: {
+      ...summary,
+      rentRecords: payments.length,
+      trackedUnits: activeUnits.size,
+      currentMonthDue: currentMonth.reduce((sum, payment) => sum + Number(payment.amount), 0),
+      currentMonthReceived: currentMonth.reduce(
+        (sum, payment) => sum + (payment.paid_at ? Number(payment.amount) : 0),
+        0,
+      ),
+    },
+    recentPayments: payments.slice(0, 5),
+  })
 })
 
-app.post('/api/rent-payments/', authRequired, async (req, res) => {
+app.get('/api/dashboard/estate/', authRequired, roleRequired('estate_manager', 'An assigned estate-manager account is required.'), async (req, res) => {
+  const user = serializeUser(req.user)
+  if (!user.managed_estate) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+
+  const estate = seedEstates.find((entry) => entry.slug === user.managed_estate)
+  if (!estate) return res.status(403).json({ detail: 'Your account is assigned to an unavailable estate.' })
+
+  const properties = seedProperties
+    .filter((property) => property.estate === estate.slug)
+    .map(buildPropertyPayload)
+  const estatePayments = await getRentPaymentsForEstate(estate.slug)
+  const now = new Date()
+  const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  const today = now.toISOString().slice(0, 10)
+  const occupiedUnits = new Set(
+    estatePayments
+      .filter((payment) => payment.period === currentPeriod)
+      .map((payment) => payment.unit_name),
+  )
+  const availableProperties = properties.filter((property) => property.vacant).length
+  const trackedUnits = occupiedUnits.size
+  const portfolioUnits = trackedUnits + availableProperties
+  const summary = estatePayments.reduce((totals, payment) => {
+    if (payment.paid_at) totals.received += Number(payment.amount)
+    else {
+      totals.outstanding += Number(payment.amount)
+      if (payment.due_date < today) totals.overdue += Number(payment.amount)
+    }
+    return totals
+  }, { received: 0, outstanding: 0, overdue: 0 })
+
+  res.json({
+    estate: { slug: estate.slug, name: estate.name, area: estate.area },
+    summary: {
+      properties: properties.length,
+      availableProperties,
+      occupiedUnits: trackedUnits,
+      occupancyRate: portfolioUnits ? Math.round((trackedUnits / portfolioUnits) * 100) : 0,
+      ...summary,
+    },
+    properties,
+  })
+})
+
+app.get('/api/rent-payments/', authRequired, roleRequired('landlord', 'Rent tracking is for landlord accounts.'), async (req, res) => {
+  res.json(await getRentPaymentsForUser(req.user.id))
+})
+
+app.post('/api/rent-payments/', authRequired, roleRequired('landlord', 'Rent tracking is for landlord accounts.'), async (req, res) => {
   const body = req.body || {}
   const tenantName = typeof body.tenant_name === 'string' ? body.tenant_name.trim() : ''
   const unitName = typeof body.unit_name === 'string' ? body.unit_name.trim() : ''
   const amount = Number(body.amount)
   const period = typeof body.period === 'string' ? body.period : ''
   const dueDate = typeof body.due_date === 'string' ? body.due_date : ''
+  const estateSlug = typeof body.estate_slug === 'string' ? body.estate_slug : ''
   const parsedDueDate = new Date(`${dueDate}T00:00:00Z`)
   const errors = {}
 
@@ -636,6 +753,9 @@ app.post('/api/rent-payments/', authRequired, async (req, res) => {
     errors.amount = ['Enter a whole amount between KES 1 and KES 1,000,000,000.']
   }
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(period)) errors.period = ['Choose a valid rent month.']
+  if (estateSlug && !seedEstates.some((estate) => estate.slug === estateSlug)) {
+    errors.estate_slug = ['Choose an available estate.']
+  }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate)
     || Number.isNaN(parsedDueDate.getTime())
     || parsedDueDate.toISOString().slice(0, 10) !== dueDate) {
@@ -648,6 +768,7 @@ app.post('/api/rent-payments/', authRequired, async (req, res) => {
     user_id: req.user.id,
     tenant_name: tenantName,
     unit_name: unitName,
+    estate_slug: estateSlug || null,
     amount,
     period,
     due_date: dueDate,
@@ -657,10 +778,10 @@ app.post('/api/rent-payments/', authRequired, async (req, res) => {
 
   if (pool && databaseReady) {
     const result = await pool.query(
-      `INSERT INTO rent_payments (id, user_id, tenant_name, unit_name, amount, period, due_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
-       RETURNING id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at`,
-      [payment.id, payment.user_id, payment.tenant_name, payment.unit_name, payment.amount, payment.period, payment.due_date],
+      `INSERT INTO rent_payments (id, user_id, tenant_name, unit_name, estate_slug, amount, period, due_date)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+       RETURNING id, tenant_name, unit_name, estate_slug, amount, period, due_date, paid_at, created_at`,
+      [payment.id, payment.user_id, payment.tenant_name, payment.unit_name, payment.estate_slug, payment.amount, payment.period, payment.due_date],
     )
     return res.status(201).json(result.rows[0])
   }
@@ -670,14 +791,14 @@ app.post('/api/rent-payments/', authRequired, async (req, res) => {
   res.status(201).json(payment)
 })
 
-app.patch('/api/rent-payments/:id/paid/', authRequired, async (req, res) => {
+app.patch('/api/rent-payments/:id/paid/', authRequired, roleRequired('landlord', 'Rent tracking is for landlord accounts.'), async (req, res) => {
   const paidAt = new Date().toISOString()
   if (pool && databaseReady) {
     const result = await pool.query(
       `UPDATE rent_payments
        SET paid_at = $1
        WHERE id = $2 AND user_id = $3
-       RETURNING id, tenant_name, unit_name, amount, period, due_date, paid_at, created_at`,
+       RETURNING id, tenant_name, unit_name, estate_slug, amount, period, due_date, paid_at, created_at`,
       [paidAt, req.params.id, req.user.id],
     )
     if (!result.rowCount) return res.status(404).json({ detail: 'Rent payment not found.' })

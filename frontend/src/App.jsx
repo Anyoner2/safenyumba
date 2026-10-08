@@ -2,8 +2,10 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Footer from './components/Footer.jsx'
 import Navbar from './components/Navbar.jsx'
 import Estates from './pages/Estates.jsx'
+import EstateDashboard from './pages/EstateDashboard.jsx'
 import Home from './pages/Home.jsx'
 import Houses from './pages/Houses.jsx'
+import LandlordDashboard from './pages/LandlordDashboard.jsx'
 import Login from './pages/Login.jsx'
 import ListProperty from './pages/ListProperty.jsx'
 import Register from './pages/Register.jsx'
@@ -21,6 +23,8 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/houses" element={<Houses />} />
             <Route path="/estates" element={<Estates />} />
+            <Route path="/dashboard" element={<LandlordDashboard />} />
+            <Route path="/estate-dashboard" element={<EstateDashboard />} />
             <Route path="/list-property" element={<ListProperty />} />
             <Route path="/rent-payments" element={<RentPayments />} />
             <Route path="/login" element={<Login />} />

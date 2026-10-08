@@ -71,3 +71,11 @@ export function createRentPayment(payment) {
 export function markRentPaymentPaid(id) {
   return request(`/rent-payments/${encodeURIComponent(id)}/paid/`, { method: 'PATCH' })
 }
+
+export function getLandlordDashboard() {
+  return request('/dashboard/landlord/')
+}
+
+export function getEstateDashboard() {
+  return request('/dashboard/estate/')
+}
