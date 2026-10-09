@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Building2, CircleDollarSign, Home, Percent, Wallet } from 'lucide-react'
 import { Navigate, useLocation } from 'react-router-dom'
-import { getEstateDashboard } from '../api.js'
+import { getEstateDashboard, updatePropertyVacancy } from '../api.js'
 import { useAuth } from '../auth.jsx'
 import PropertyMap from '../components/PropertyMap.jsx'
 
@@ -13,6 +13,8 @@ function EstateDashboard() {
   const [dashboard, setDashboard] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [updatingPropertyId, setUpdatingPropertyId] = useState('')
+  const [notice, setNotice] = useState('')
 
   useEffect(() => {
     let active = true
@@ -31,6 +33,24 @@ function EstateDashboard() {
 
   if (!user) return <Navigate to="/login/" replace state={{ from: location.pathname }} />
   if (user.role !== 'estate_manager') return <Navigate to="/dashboard/" replace />
+
+  async function handleVacancyChange(property) {
+    setError('')
+    setNotice('')
+    setUpdatingPropertyId(property.id)
+    try {
+      const result = await updatePropertyVacancy(property.id, !property.vacant)
+      const refreshed = await getEstateDashboard()
+      setDashboard(refreshed)
+      setNotice(result.notificationsCreated
+        ? `${result.notificationsCreated} saved-home alert${result.notificationsCreated === 1 ? '' : 's'} sent.`
+        : `Availability updated for ${property.title}.`)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setUpdatingPropertyId('')
+    }
+  }
 
   const summary = dashboard?.summary
   const metrics = [
@@ -54,6 +74,7 @@ function EstateDashboard() {
 
         {loading && <p className="empty-state" role="status">Loading estate dashboard...</p>}
         {error && <p className="form-message" role="alert">{error}</p>}
+        {notice && <p className="submission-success" role="status">{notice}</p>}
         <div className="dashboard-metrics estate-dashboard-metrics">
           {metrics.map(({ label, value, Icon }) => (
             <article className="dashboard-metric" key={label}>
@@ -96,6 +117,16 @@ function EstateDashboard() {
                       <span className={`rent-status ${property.vacant ? 'rent-status-due' : 'rent-status-paid'}`}>
                         {property.vacant ? 'Available' : 'Occupied'}
                       </span>
+                      <button
+                        className="availability-toggle"
+                        type="button"
+                        disabled={updatingPropertyId === property.id}
+                        onClick={() => handleVacancyChange(property)}
+                      >
+                        {updatingPropertyId === property.id
+                          ? 'Saving...'
+                          : property.vacant ? 'Mark occupied' : 'Mark available'}
+                      </button>
                     </article>
                   ))}
                 </div>

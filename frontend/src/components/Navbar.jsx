@@ -13,10 +13,11 @@ const links = [
 function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false)
   const isListPropertyPage = useLocation().pathname.replace(/\/+$/, '') === '/list-property'
-  const { user, signOut } = useAuth()
+  const { user, signOut, notifications } = useAuth()
   const dashboardLink = user?.role === 'estate_manager'
     ? { to: '/estate-dashboard/', label: 'Estate dashboard' }
     : user ? { to: '/dashboard/', label: 'Dashboard' } : null
+  const unreadCount = notifications.filter((notification) => !notification.read_at).length
   const userHandle = user?.email?.split('@')[0]
     || user?.full_name?.trim().replace(/\s+/g, '').toLowerCase()
     || 'there'
@@ -42,7 +43,18 @@ function Navbar() {
           {menuOpen ? <X size={20} /> : <Menu size={20} />}
         </button>
         <nav className={`nav-links${menuOpen ? ' is-open' : ''}`} aria-label="Main navigation">
-          {[...links, ...(dashboardLink ? [dashboardLink] : []), ...(user?.role === 'landlord' ? [{ to: '/rent-payments/', label: 'Rent payments' }] : [])].map((link) => (
+          {[
+            ...links,
+            ...(dashboardLink ? [dashboardLink] : []),
+            ...(user?.role === 'landlord' ? [
+              { to: '/rent-payments/', label: 'Rent payments' },
+              { to: '/tenancy-documents/', label: 'Tenancy documents' },
+            ] : []),
+            ...(user ? [
+              { to: '/saved-homes/', label: 'Saved homes' },
+              { to: '/notifications/', label: `Alerts${unreadCount ? ` (${unreadCount})` : ''}` },
+            ] : []),
+          ].map((link) => (
             <NavLink
               key={link.to}
               className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}

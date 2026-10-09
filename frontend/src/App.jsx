@@ -10,6 +10,9 @@ import Login from './pages/Login.jsx'
 import ListProperty from './pages/ListProperty.jsx'
 import Register from './pages/Register.jsx'
 import RentPayments from './pages/RentPayments.jsx'
+import SavedHomes from './pages/SavedHomes.jsx'
+import Notifications from './pages/Notifications.jsx'
+import TenancyDocuments from './pages/TenancyDocuments.jsx'
 import { AuthProvider } from './auth.jsx'
 import './App.css'
 
@@ -27,6 +30,9 @@ function App() {
             <Route path="/estate-dashboard" element={<EstateDashboard />} />
             <Route path="/list-property" element={<ListProperty />} />
             <Route path="/rent-payments" element={<RentPayments />} />
+            <Route path="/tenancy-documents" element={<TenancyDocuments />} />
+            <Route path="/saved-homes" element={<SavedHomes />} />
+            <Route path="/notifications" element={<Notifications />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />

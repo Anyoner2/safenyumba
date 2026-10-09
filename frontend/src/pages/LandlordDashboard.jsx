@@ -53,7 +53,10 @@ function LandlordDashboard() {
             <h1 className="page-title">Your dashboard</h1>
             <p>See how rent is tracking across the units you manage.</p>
           </div>
-          <Link className="button" to="/rent-payments/">Manage rent <ArrowRight size={16} /></Link>
+          <div className="dashboard-header-actions">
+            <Link className="button button-light" to="/tenancy-documents/">Prepare tenancy document</Link>
+            <Link className="button" to="/rent-payments/">Manage rent <ArrowRight size={16} /></Link>
+          </div>
         </header>
 
         {loading && <p className="empty-state" role="status">Loading your dashboard...</p>}

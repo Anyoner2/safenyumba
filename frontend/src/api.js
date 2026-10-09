@@ -79,3 +79,30 @@ export function getLandlordDashboard() {
 export function getEstateDashboard() {
   return request('/dashboard/estate/')
 }
+
+export function getSavedProperties() {
+  return request('/saved-properties/')
+}
+
+export function saveProperty(id) {
+  return request(`/saved-properties/${encodeURIComponent(id)}/`, { method: 'POST' })
+}
+
+export function unsaveProperty(id) {
+  return request(`/saved-properties/${encodeURIComponent(id)}/`, { method: 'DELETE' })
+}
+
+export function getNotifications() {
+  return request('/notifications/')
+}
+
+export function markAllNotificationsRead() {
+  return request('/notifications/read-all/', { method: 'PATCH' })
+}
+
+export function updatePropertyVacancy(id, vacant) {
+  return request(`/properties/${encodeURIComponent(id)}/vacancy/`, {
+    method: 'PATCH',
+    body: { vacant },
+  })
+}

@@ -22,9 +22,20 @@ if (databaseUrl) {
   }
 }
 
-const data = globalThis.__safeNyumbaData ??= { users: [], tokens: {}, propertySubmissions: [], rentPayments: [] }
+const data = globalThis.__safeNyumbaData ??= {
+  users: [],
+  tokens: {},
+  propertySubmissions: [],
+  rentPayments: [],
+  propertyAvailability: {},
+  savedProperties: [],
+  notifications: [],
+}
 data.propertySubmissions ??= []
 data.rentPayments ??= []
+data.propertyAvailability ??= {}
+data.savedProperties ??= []
+data.notifications ??= []
 
 const seedEstates = [
   {
@@ -232,6 +243,35 @@ async function initializeDatabase() {
     `)
     await pool.query('ALTER TABLE rent_payments ADD COLUMN IF NOT EXISTS estate_slug TEXT')
 
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_availability (
+        property_id TEXT PRIMARY KEY,
+        estate_slug TEXT NOT NULL,
+        vacant BOOLEAN NOT NULL,
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS saved_properties (
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        property_id TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        PRIMARY KEY (user_id, property_id)
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS notifications (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        property_id TEXT NOT NULL,
+        notification_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        message TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        read_at TIMESTAMPTZ
+      );
+    `)
+
     databaseReady = true
     return true
   } catch (error) {
@@ -316,8 +356,8 @@ async function clearToken(token) {
   await pool.query('DELETE FROM tokens WHERE token = $1', [token])
 }
 
-function buildEstatePayload(estate) {
-  const homes = seedProperties.filter(
+function buildEstatePayload(estate, properties = seedProperties) {
+  const homes = properties.filter(
     (property) => property.estate === estate.slug && property.verified && property.vacant,
   ).length
 
@@ -329,6 +369,25 @@ function buildEstatePayload(estate) {
     description: estate.description,
     image: estate.image,
   }
+}
+
+async function getPropertiesWithAvailability() {
+  let availability
+  if (pool && databaseReady) {
+    const result = await pool.query('SELECT property_id, vacant FROM property_availability')
+    availability = new Map(result.rows.map((entry) => [entry.property_id, entry.vacant]))
+  } else {
+    availability = new Map(Object.entries(data.propertyAvailability))
+  }
+
+  return seedProperties.map((property) => ({
+    ...property,
+    vacant: availability.has(property.slug) ? availability.get(property.slug) : property.vacant,
+  }))
+}
+
+function findSeedProperty(propertyId) {
+  return seedProperties.find((property) => property.slug === propertyId)
 }
 
 function buildPropertyPayload(property) {
@@ -439,10 +498,10 @@ app.get('/api/health/', (req, res) => {
   res.json({ status: 'ok' })
 })
 
-app.get('/api/properties/', (req, res) => {
+app.get('/api/properties/', async (req, res) => {
   const { location = '', budget, bedrooms } = req.query
 
-  let filtered = [...seedProperties].filter((property) => property.vacant && property.verified)
+  let filtered = (await getPropertiesWithAvailability()).filter((property) => property.vacant && property.verified)
 
   if (location) {
     const value = String(location).trim().toLowerCase()
@@ -477,8 +536,193 @@ app.get('/api/properties/', (req, res) => {
   res.json(filtered.map(buildPropertyPayload))
 })
 
-app.get('/api/estates/', (req, res) => {
-  res.json(seedEstates.map(buildEstatePayload))
+app.get('/api/estates/', async (req, res) => {
+  const properties = await getPropertiesWithAvailability()
+  res.json(seedEstates.map((estate) => buildEstatePayload(estate, properties)))
+})
+
+app.get('/api/saved-properties/', authRequired, async (req, res) => {
+  let savedIds
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      'SELECT property_id FROM saved_properties WHERE user_id = $1 ORDER BY created_at DESC',
+      [req.user.id],
+    )
+    savedIds = result.rows.map((row) => row.property_id)
+  } else {
+    savedIds = data.savedProperties
+      .filter((entry) => entry.user_id === req.user.id)
+      .map((entry) => entry.property_id)
+  }
+
+  const properties = await getPropertiesWithAvailability()
+  const propertiesById = new Map(properties.map((property) => [property.slug, property]))
+  res.json(savedIds.map((id) => propertiesById.get(id)).filter(Boolean).map(buildPropertyPayload))
+})
+
+app.post('/api/saved-properties/:id/', authRequired, async (req, res) => {
+  const property = findSeedProperty(req.params.id)
+  if (!property || !property.verified) return res.status(404).json({ detail: 'Property not found.' })
+
+  if (pool && databaseReady) {
+    await pool.query(
+      'INSERT INTO saved_properties (user_id, property_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [req.user.id, property.slug],
+    )
+  } else if (!data.savedProperties.some((entry) =>
+    entry.user_id === req.user.id && entry.property_id === property.slug,
+  )) {
+    data.savedProperties.push({ user_id: req.user.id, property_id: property.slug })
+    saveData()
+  }
+
+  res.status(201).json({ id: property.slug })
+})
+
+app.delete('/api/saved-properties/:id/', authRequired, async (req, res) => {
+  if (pool && databaseReady) {
+    await pool.query(
+      'DELETE FROM saved_properties WHERE user_id = $1 AND property_id = $2',
+      [req.user.id, req.params.id],
+    )
+  } else {
+    data.savedProperties = data.savedProperties.filter((entry) =>
+      !(entry.user_id === req.user.id && entry.property_id === req.params.id),
+    )
+    saveData()
+  }
+
+  res.status(204).send()
+})
+
+app.get('/api/notifications/', authRequired, async (req, res) => {
+  let notifications
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT id, property_id, notification_type, title, message, created_at, read_at
+       FROM notifications
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id],
+    )
+    notifications = result.rows
+  } else {
+    notifications = data.notifications
+      .filter((entry) => entry.user_id === req.user.id)
+      .sort((first, second) => second.created_at.localeCompare(first.created_at))
+  }
+
+  res.json(notifications.map((notification) => {
+    const property = findSeedProperty(notification.property_id)
+    return {
+      id: notification.id,
+      type: notification.notification_type,
+      title: notification.title,
+      message: notification.message,
+      created_at: notification.created_at,
+      read_at: notification.read_at,
+      property: property ? buildPropertyPayload(property) : null,
+    }
+  }))
+})
+
+app.patch('/api/notifications/read-all/', authRequired, async (req, res) => {
+  const readAt = new Date().toISOString()
+  if (pool && databaseReady) {
+    await pool.query(
+      'UPDATE notifications SET read_at = $1 WHERE user_id = $2 AND read_at IS NULL',
+      [readAt, req.user.id],
+    )
+  } else {
+    data.notifications.forEach((notification) => {
+      if (notification.user_id === req.user.id && !notification.read_at) notification.read_at = readAt
+    })
+    saveData()
+  }
+  res.status(204).send()
+})
+
+app.patch('/api/properties/:id/vacancy/', authRequired, roleRequired('estate_manager', 'Only estate managers can update listing availability.'), async (req, res) => {
+  const property = findSeedProperty(req.params.id)
+  const vacant = req.body?.vacant
+  const managedEstate = req.user.managed_estate
+  if (!property || property.estate !== managedEstate) {
+    return res.status(404).json({ detail: 'Property not found in your assigned estate.' })
+  }
+  if (typeof vacant !== 'boolean') {
+    return res.status(400).json({ vacant: ['Choose whether the property is available.'] })
+  }
+
+  const current = await getPropertiesWithAvailability()
+  const previousVacancy = current.find((entry) => entry.slug === property.slug)?.vacant
+  if (previousVacancy === vacant) {
+    return res.json({ property: buildPropertyPayload({ ...property, vacant }), notificationsCreated: 0 })
+  }
+
+  const createdAt = new Date().toISOString()
+  let savedUserIds = []
+  if (pool && databaseReady) {
+    const client = await pool.connect()
+    try {
+      await client.query('BEGIN')
+      await client.query(
+        `INSERT INTO property_availability (property_id, estate_slug, vacant, updated_at)
+         VALUES ($1, $2, $3, $4)
+         ON CONFLICT (property_id) DO UPDATE
+         SET vacant = EXCLUDED.vacant, updated_at = EXCLUDED.updated_at`,
+        [property.slug, property.estate, vacant, createdAt],
+      )
+      if (vacant && !previousVacancy) {
+        const saved = await client.query(
+          'SELECT user_id FROM saved_properties WHERE property_id = $1',
+          [property.slug],
+        )
+        savedUserIds = saved.rows.map((row) => row.user_id)
+        for (const userId of savedUserIds) {
+          await client.query(
+            `INSERT INTO notifications (id, user_id, property_id, notification_type, title, message, created_at)
+             VALUES ($1, $2, $3, 'vacancy', $4, $5, $6)`,
+            [
+              `notification-${crypto.randomUUID()}`,
+              userId,
+              property.slug,
+              `${property.title} is available again`,
+              `${property.title} in ${property.location} is available to view.`,
+              createdAt,
+            ],
+          )
+        }
+      }
+      await client.query('COMMIT')
+    } catch (error) {
+      await client.query('ROLLBACK')
+      throw error
+    } finally {
+      client.release()
+    }
+  } else {
+    data.propertyAvailability[property.slug] = vacant
+    if (vacant && !previousVacancy) {
+      const savedEntries = data.savedProperties.filter((entry) => entry.property_id === property.slug)
+      savedUserIds = savedEntries.map((entry) => entry.user_id)
+      data.notifications.push(...savedUserIds.map((userId) => ({
+        id: `notification-${crypto.randomUUID()}`,
+        user_id: userId,
+        property_id: property.slug,
+        notification_type: 'vacancy',
+        title: `${property.title} is available again`,
+        message: `${property.title} in ${property.location} is available to view.`,
+        created_at: createdAt,
+        read_at: null,
+      })))
+    }
+    saveData()
+  }
+
+  res.json({
+    property: buildPropertyPayload({ ...property, vacant }),
+    notificationsCreated: savedUserIds.length,
+  })
 })
 
 app.post('/api/property-submissions/', async (req, res) => {
@@ -726,7 +970,7 @@ app.get('/api/dashboard/estate/', authRequired, roleRequired('estate_manager', '
   const estate = seedEstates.find((entry) => entry.slug === user.managed_estate)
   if (!estate) return res.status(403).json({ detail: 'Your account is assigned to an unavailable estate.' })
 
-  const properties = seedProperties
+  const properties = (await getPropertiesWithAvailability())
     .filter((property) => property.estate === estate.slug)
     .map(buildPropertyPayload)
   const estatePayments = await getRentPaymentsForEstate(estate.slug)

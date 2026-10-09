@@ -22,6 +22,9 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 - `GET /api/auth/me/` and `POST /api/auth/logout/` with a token
 - `GET /api/rent-payments/`, `POST /api/rent-payments/`, and `PATCH /api/rent-payments/:id/paid/` with a token
 - `GET /api/dashboard/landlord/` and `GET /api/dashboard/estate/` with a token and the matching account role
+- `GET /api/saved-properties/`, `POST /api/saved-properties/:id/`, and `DELETE /api/saved-properties/:id/` with a token
+- `GET /api/notifications/` and `PATCH /api/notifications/read-all/` with a token
+- `PATCH /api/properties/:id/vacancy/` with an assigned estate-manager token
 
 New accounts default to the `landlord` role; roles cannot be selected during registration. To assign an estate manager, update the account from an administrative PostgreSQL session after the estate exists:
 
@@ -33,7 +36,11 @@ WHERE email = 'manager@example.com';
 
 Supported estate slugs are `kilimani`, `westlands`, and `muthaiga`. Estate managers see portfolio and rent aggregates for their assigned estate only. Occupancy is an estimate based on current-month rent-tracked units and verified vacant listings.
 
+Estate managers can update availability for listings in their assigned estate. When a listing changes from unavailable to available, the API creates an in-app notification for each account that saved it. Availability, saved listings, and notifications persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
+
 Rent records belong to the authenticated landlord account. Link each record to an estate to include it in that estate's aggregate dashboard. With `DATABASE_URL` configured, the API stores accounts and records in PostgreSQL; without it, the development server uses an in-memory store.
+
+The landlord tenancy-document tool generates a print-ready agreement draft in the browser and can use the browser print dialog to save a PDF. It does not store agreement details or provide e-signatures or legal advice; the draft should be reviewed against current Kenyan law before signing.
 
 Property owners can capture GPS coordinates in the browser or place a pin on the OpenStreetMap widget while submitting a property. Coordinates are optional, validated as a latitude/longitude pair, and stored only with the private submission for verification. Public sample listing pins are approximate neighbourhood locations, not property addresses. OpenStreetMap receives requests for the map tiles covering the visible area, including when a GPS pin recentres the map; the submitted coordinates themselves are not included in the submission response or public property listings. OpenStreetMap tiles require an internet connection and display OpenStreetMap attribution; browser GPS permission requires a secure context (HTTPS or localhost).
 

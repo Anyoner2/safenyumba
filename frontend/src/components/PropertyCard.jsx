@@ -1,9 +1,32 @@
 import { useState } from 'react'
 import { ArrowUpRight, BedDouble, Heart, MapPin, ShieldCheck } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '../auth.jsx'
 
 function PropertyCard({ property }) {
-  const [saved, setSaved] = useState(false)
+  const { user, savedPropertyIds, toggleSavedProperty } = useAuth()
+  const location = useLocation()
+  const navigate = useNavigate()
+  const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+  const saved = savedPropertyIds.includes(property.id)
+
+  async function handleToggleSaved() {
+    setError('')
+    if (!user) {
+      navigate('/login/', { state: { from: `${location.pathname}${location.search}` } })
+      return
+    }
+
+    setSaving(true)
+    try {
+      await toggleSavedProperty(property.id)
+    } catch (requestError) {
+      setError(requestError.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <article className="property-card">
@@ -13,14 +36,17 @@ function PropertyCard({ property }) {
         <button
           className={`save-button${saved ? ' saved' : ''}`}
           type="button"
-          aria-label={saved ? `Remove ${property.title} from saved homes` : `Save ${property.title}`}
+          aria-label={saved ? `Remove ${property.title} from saved homes` : `Save ${property.title} for vacancy alerts`}
           aria-pressed={saved}
-          onClick={() => setSaved((value) => !value)}
+          aria-busy={saving}
+          disabled={saving}
+          onClick={handleToggleSaved}
         >
           <Heart size={17} fill={saved ? 'currentColor' : 'none'} />
         </button>
       </div>
       <div className="property-body">
+        {error && <p className="save-error" role="alert">{error}</p>}
         <div className="property-location"><MapPin size={14} /> {property.location}, {property.city}</div>
         <h3 className="property-title">{property.title}</h3>
         <div className="property-price">KSh {property.rent.toLocaleString('en-KE')} <span>/ month</span></div>
