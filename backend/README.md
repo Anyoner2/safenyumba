@@ -25,6 +25,8 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 - `GET /api/saved-properties/`, `POST /api/saved-properties/:id/`, and `DELETE /api/saved-properties/:id/` with a token
 - `GET /api/notifications/` and `PATCH /api/notifications/read-all/` with a token
 - `PATCH /api/properties/:id/vacancy/` with an assigned estate-manager token
+- `GET /api/maintenance-requests/` and `POST /api/maintenance-requests/` with a token; estate managers can update status using `PATCH /api/maintenance-requests/:id/status/`
+- Public `GET /api/announcements/` (optional `estate` filter); assigned estate managers can publish with `POST /api/announcements/`
 
 New accounts default to the `landlord` role; roles cannot be selected during registration. To assign an estate manager, update the account from an administrative PostgreSQL session after the estate exists:
 
@@ -37,6 +39,8 @@ WHERE email = 'manager@example.com';
 Supported estate slugs are `kilimani`, `westlands`, and `muthaiga`. Estate managers see portfolio and rent aggregates for their assigned estate only. Occupancy is an estimate based on current-month rent-tracked units and verified vacant listings.
 
 Estate managers can update availability for listings in their assigned estate. When a listing changes from unavailable to available, the API creates an in-app notification for each account that saved it. Availability, saved listings, and notifications persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
+
+Signed-in accounts can report maintenance issues for an estate and unit. Reporters can see their own requests; estate managers can see and update requests for their assigned estate. Estate managers can publish public announcements for their assigned estate. Requests and announcements persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
 
 Rent records belong to the authenticated landlord account. Link each record to an estate to include it in that estate's aggregate dashboard. With `DATABASE_URL` configured, the API stores accounts and records in PostgreSQL; without it, the development server uses an in-memory store.
 

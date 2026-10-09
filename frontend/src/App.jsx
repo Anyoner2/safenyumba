@@ -13,6 +13,8 @@ import RentPayments from './pages/RentPayments.jsx'
 import SavedHomes from './pages/SavedHomes.jsx'
 import Notifications from './pages/Notifications.jsx'
 import TenancyDocuments from './pages/TenancyDocuments.jsx'
+import MaintenanceRequests from './pages/MaintenanceRequests.jsx'
+import Announcements from './pages/Announcements.jsx'
 import { AuthProvider } from './auth.jsx'
 import './App.css'
 
@@ -33,6 +35,8 @@ function App() {
             <Route path="/tenancy-documents" element={<TenancyDocuments />} />
             <Route path="/saved-homes" element={<SavedHomes />} />
             <Route path="/notifications" element={<Notifications />} />
+            <Route path="/maintenance" element={<MaintenanceRequests />} />
+            <Route path="/announcements" element={<Announcements />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
             <Route path="*" element={<Navigate to="/" replace />} />

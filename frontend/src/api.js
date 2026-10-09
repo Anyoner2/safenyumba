@@ -106,3 +106,27 @@ export function updatePropertyVacancy(id, vacant) {
     body: { vacant },
   })
 }
+
+export function getMaintenanceRequests() {
+  return request('/maintenance-requests/')
+}
+
+export function createMaintenanceRequest(maintenanceRequest) {
+  return request('/maintenance-requests/', { method: 'POST', body: maintenanceRequest })
+}
+
+export function updateMaintenanceRequestStatus(id, status) {
+  return request(`/maintenance-requests/${encodeURIComponent(id)}/status/`, {
+    method: 'PATCH',
+    body: { status },
+  })
+}
+
+export function getAnnouncements(estateSlug = '') {
+  const query = estateSlug ? `?estate=${encodeURIComponent(estateSlug)}` : ''
+  return request(`/announcements/${query}`)
+}
+
+export function createAnnouncement(announcement) {
+  return request('/announcements/', { method: 'POST', body: announcement })
+}

@@ -7,6 +7,7 @@ const links = [
   { to: '/', label: 'Home', end: true },
   { to: '/houses/', label: 'Find Houses' },
   { to: '/estates/', label: 'Estates' },
+  { to: '/announcements/', label: 'Announcements' },
   { to: '/list-property/', label: 'List Property' },
 ]
 
@@ -46,6 +47,7 @@ function Navbar() {
           {[
             ...links,
             ...(dashboardLink ? [dashboardLink] : []),
+            ...(user ? [{ to: '/maintenance/', label: 'Maintenance' }] : []),
             ...(user?.role === 'landlord' ? [
               { to: '/rent-payments/', label: 'Rent payments' },
               { to: '/tenancy-documents/', label: 'Tenancy documents' },

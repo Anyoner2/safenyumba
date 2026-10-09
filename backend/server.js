@@ -30,12 +30,16 @@ const data = globalThis.__safeNyumbaData ??= {
   propertyAvailability: {},
   savedProperties: [],
   notifications: [],
+  maintenanceRequests: [],
+  announcements: [],
 }
 data.propertySubmissions ??= []
 data.rentPayments ??= []
 data.propertyAvailability ??= {}
 data.savedProperties ??= []
 data.notifications ??= []
+data.maintenanceRequests ??= []
+data.announcements ??= []
 
 const seedEstates = [
   {
@@ -269,6 +273,30 @@ async function initializeDatabase() {
         message TEXT NOT NULL,
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         read_at TIMESTAMPTZ
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS maintenance_requests (
+        id TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        estate_slug TEXT NOT NULL,
+        unit_name TEXT NOT NULL,
+        title TEXT NOT NULL,
+        description TEXT NOT NULL,
+        priority TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'open',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS estate_announcements (
+        id TEXT PRIMARY KEY,
+        estate_slug TEXT NOT NULL,
+        author_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        title TEXT NOT NULL,
+        body TEXT NOT NULL,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
 
@@ -723,6 +751,215 @@ app.patch('/api/properties/:id/vacancy/', authRequired, roleRequired('estate_man
     property: buildPropertyPayload({ ...property, vacant }),
     notificationsCreated: savedUserIds.length,
   })
+})
+
+app.get('/api/maintenance-requests/', authRequired, async (req, res) => {
+  const isManager = req.user.role === 'estate_manager'
+  if (isManager && !seedEstates.some((estate) => estate.slug === req.user.managed_estate)) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+
+  if (pool && databaseReady) {
+    const result = isManager
+      ? await pool.query(
+        `SELECT mr.id, mr.estate_slug, mr.unit_name, mr.title, mr.description,
+                mr.priority, mr.status, mr.created_at, mr.updated_at, u.first_name AS requester_name
+         FROM maintenance_requests mr
+         INNER JOIN users u ON u.id = mr.user_id
+         WHERE mr.estate_slug = $1
+         ORDER BY mr.created_at DESC`,
+        [req.user.managed_estate],
+      )
+      : await pool.query(
+        `SELECT mr.id, mr.estate_slug, mr.unit_name, mr.title, mr.description,
+                mr.priority, mr.status, mr.created_at, mr.updated_at, u.first_name AS requester_name
+         FROM maintenance_requests mr
+         INNER JOIN users u ON u.id = mr.user_id
+         WHERE mr.user_id = $1
+         ORDER BY mr.created_at DESC`,
+        [req.user.id],
+      )
+    return res.json(result.rows)
+  }
+
+  const requests = data.maintenanceRequests
+    .filter((request) => isManager
+      ? request.estate_slug === req.user.managed_estate
+      : request.user_id === req.user.id)
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+  res.json(requests.map(({ user_id, ...request }) => request))
+})
+
+app.post('/api/maintenance-requests/', authRequired, async (req, res) => {
+  const body = req.body || {}
+  const estateSlug = typeof body.estate_slug === 'string' ? body.estate_slug : ''
+  if (req.user.role === 'estate_manager' && !seedEstates.some((estate) => estate.slug === req.user.managed_estate)) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+  if (req.user.role === 'estate_manager' && estateSlug !== req.user.managed_estate) {
+    return res.status(403).json({ detail: 'You can only submit requests for your assigned estate.' })
+  }
+  const unitName = typeof body.unit_name === 'string' ? body.unit_name.trim() : ''
+  const title = typeof body.title === 'string' ? body.title.trim() : ''
+  const description = typeof body.description === 'string' ? body.description.trim() : ''
+  const priority = typeof body.priority === 'string' ? body.priority : 'normal'
+  const errors = {}
+
+  if (!seedEstates.some((estate) => estate.slug === estateSlug)) errors.estate_slug = ['Choose an available estate.']
+  if (!unitName || unitName.length > 120) errors.unit_name = ['Enter a unit or property (up to 120 characters).']
+  if (!title || title.length > 120) errors.title = ['Enter a request title (up to 120 characters).']
+  if (!description || description.length > 2000) errors.description = ['Describe the issue in up to 2,000 characters.']
+  if (!['normal', 'high', 'urgent'].includes(priority)) errors.priority = ['Choose a valid priority.']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const createdAt = new Date().toISOString()
+  const request = {
+    id: `maintenance-${crypto.randomUUID()}`,
+    user_id: req.user.id,
+    requester_name: req.user.first_name,
+    estate_slug: estateSlug,
+    unit_name: unitName,
+    title,
+    description,
+    priority,
+    status: 'open',
+    created_at: createdAt,
+    updated_at: createdAt,
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `INSERT INTO maintenance_requests
+       (id, user_id, estate_slug, unit_name, title, description, priority, status, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, estate_slug, unit_name, title, description, priority, status, created_at, updated_at`,
+      [
+        request.id, request.user_id, request.estate_slug, request.unit_name, request.title,
+        request.description, request.priority, request.status, request.created_at, request.updated_at,
+      ],
+    )
+    return res.status(201).json({ ...result.rows[0], requester_name: req.user.first_name })
+  }
+
+  data.maintenanceRequests.push(request)
+  saveData()
+  const { user_id, ...publicRequest } = request
+  res.status(201).json(publicRequest)
+})
+
+app.patch('/api/maintenance-requests/:id/status/', authRequired, roleRequired('estate_manager', 'Only estate managers can update maintenance requests.'), async (req, res) => {
+  if (!seedEstates.some((estate) => estate.slug === req.user.managed_estate)) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+  const status = req.body?.status
+  if (!['open', 'in_progress', 'resolved'].includes(status)) {
+    return res.status(400).json({ status: ['Choose a valid request status.'] })
+  }
+
+  const updatedAt = new Date().toISOString()
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `UPDATE maintenance_requests
+       SET status = $1, updated_at = $2
+       WHERE id = $3 AND estate_slug = $4
+       RETURNING id, user_id, estate_slug, unit_name, title, description, priority, status, created_at, updated_at`,
+      [status, updatedAt, req.params.id, req.user.managed_estate],
+    )
+    if (!result.rowCount) return res.status(404).json({ detail: 'Maintenance request not found in your assigned estate.' })
+    const { user_id: requesterId, ...publicRequest } = result.rows[0]
+    const reporter = await pool.query('SELECT first_name FROM users WHERE id = $1', [requesterId])
+    return res.json({ ...publicRequest, requester_name: reporter.rows[0]?.first_name || '' })
+  }
+
+  const request = data.maintenanceRequests.find(
+    (entry) => entry.id === req.params.id && entry.estate_slug === req.user.managed_estate,
+  )
+  if (!request) return res.status(404).json({ detail: 'Maintenance request not found in your assigned estate.' })
+  request.status = status
+  request.updated_at = updatedAt
+  saveData()
+  const { user_id, ...publicRequest } = request
+  res.json(publicRequest)
+})
+
+app.get('/api/announcements/', async (req, res) => {
+  const estateSlug = typeof req.query.estate === 'string' ? req.query.estate : ''
+  if (estateSlug && !seedEstates.some((estate) => estate.slug === estateSlug)) {
+    return res.status(400).json({ estate: ['Choose an available estate.'] })
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT a.id, a.estate_slug, e.name AS estate_name, a.title, a.body, a.created_at,
+              u.first_name AS author_name
+       FROM estate_announcements a
+       INNER JOIN users u ON u.id = a.author_id
+       INNER JOIN (VALUES ('kilimani', 'Kilimani'), ('westlands', 'Westlands'), ('muthaiga', 'Muthaiga'))
+         AS e(slug, name) ON e.slug = a.estate_slug
+       WHERE ($1 = '' OR a.estate_slug = $1)
+       ORDER BY a.created_at DESC`,
+      [estateSlug],
+    )
+    return res.json(result.rows)
+  }
+
+  const estatesBySlug = new Map(seedEstates.map((estate) => [estate.slug, estate.name]))
+  const usersById = new Map(data.users.map((user) => [user.id, user.first_name]))
+  const announcements = data.announcements
+    .filter((announcement) => !estateSlug || announcement.estate_slug === estateSlug)
+    .sort((first, second) => second.created_at.localeCompare(first.created_at))
+    .map((announcement) => ({
+      id: announcement.id,
+      estate_slug: announcement.estate_slug,
+      title: announcement.title,
+      body: announcement.body,
+      created_at: announcement.created_at,
+      estate_name: estatesBySlug.get(announcement.estate_slug),
+      author_name: usersById.get(announcement.author_id) || '',
+    }))
+  res.json(announcements)
+})
+
+app.post('/api/announcements/', authRequired, roleRequired('estate_manager', 'Only estate managers can post announcements.'), async (req, res) => {
+  const managedEstate = seedEstates.find((estate) => estate.slug === req.user.managed_estate)
+  if (!managedEstate) return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+
+  const title = typeof req.body?.title === 'string' ? req.body.title.trim() : ''
+  const body = typeof req.body?.body === 'string' ? req.body.body.trim() : ''
+  const errors = {}
+  if (!title || title.length > 120) errors.title = ['Enter a title (up to 120 characters).']
+  if (!body || body.length > 3000) errors.body = ['Enter an announcement (up to 3,000 characters).']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const announcement = {
+    id: `announcement-${crypto.randomUUID()}`,
+    estate_slug: managedEstate.slug,
+    estate_name: managedEstate.name,
+    author_id: req.user.id,
+    author_name: req.user.first_name,
+    title,
+    body,
+    created_at: new Date().toISOString(),
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `INSERT INTO estate_announcements (id, estate_slug, author_id, title, body, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, estate_slug, title, body, created_at`,
+      [announcement.id, announcement.estate_slug, announcement.author_id, title, body, announcement.created_at],
+    )
+    return res.status(201).json({
+      ...result.rows[0],
+      estate_name: managedEstate.name,
+      author_name: req.user.first_name,
+    })
+  }
+
+  data.announcements.push(announcement)
+  saveData()
+  const { author_id, ...publicAnnouncement } = announcement
+  res.status(201).json(publicAnnouncement)
 })
 
 app.post('/api/property-submissions/', async (req, res) => {
