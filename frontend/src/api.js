@@ -36,6 +36,10 @@ export function getProperties(searchParams) {
   return request(`/properties/${query ? `?${query}` : ''}`)
 }
 
+export function createViewingRequest(viewingRequest) {
+  return request('/viewing-requests/', { method: 'POST', body: viewingRequest })
+}
+
 export function getEstates() {
   return request('/estates/')
 }

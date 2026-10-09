@@ -134,6 +134,45 @@ function EstateDashboard() {
                 <p className="empty-state">No listed properties are available for this estate yet.</p>
               )}
             </section>
+            <section className="dashboard-panel estate-inquiries-panel" aria-labelledby="estate-inquiries-title">
+              <div className="dashboard-panel-heading">
+                <div>
+                  <h2 id="estate-inquiries-title">Viewing requests & enquiries</h2>
+                  <p>Contact prospective tenants directly to confirm a viewing or answer their questions.</p>
+                </div>
+              </div>
+              {dashboard.viewingRequests?.length ? (
+                <div className="estate-inquiry-list">
+                  {dashboard.viewingRequests.map((request) => (
+                    <article className="estate-inquiry" key={request.id}>
+                      <div className="estate-inquiry-heading">
+                        <div>
+                          <h3>{request.requester_name}</h3>
+                          <p>{request.property_title}</p>
+                        </div>
+                        <span className="rent-status rent-status-due">
+                          {request.request_type === 'viewing' ? 'Viewing request' : 'Contact request'}
+                        </span>
+                      </div>
+                      <div className="estate-inquiry-contact">
+                        <a href={`mailto:${request.email}`}>{request.email}</a>
+                        <a href={`tel:${request.phone}`}>{request.phone}</a>
+                      </div>
+                      {request.preferred_date && (
+                        <p className="estate-inquiry-date">
+                          Preferred viewing: {new Intl.DateTimeFormat('en-KE', { dateStyle: 'medium' }).format(
+                            new Date(`${String(request.preferred_date).slice(0, 10)}T00:00:00`),
+                          )}
+                        </p>
+                      )}
+                      {request.message && <p className="estate-inquiry-message">{request.message}</p>}
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <p className="empty-state">No viewing requests or enquiries yet.</p>
+              )}
+            </section>
           </>
         )}
       </div>

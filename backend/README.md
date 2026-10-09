@@ -14,7 +14,8 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 ## Endpoints
 
 - `GET /api/health/`
-- `GET /api/properties/` with optional `location`, `budget`, and `bedrooms` query parameters
+- `GET /api/properties/` with optional `location`, `budget` (maximum rent), `minRent`, `maxRent`, `bedrooms`, `kind`, and `amenity` query parameters
+- `POST /api/viewing-requests/` accepts a public viewing or contact request for an available property
 - `GET /api/estates/`
 - `POST /api/property-submissions/` accepts optional `latitude` and `longitude` GPS coordinates
 - `POST /api/auth/register/`
@@ -36,11 +37,13 @@ SET role = 'estate_manager', managed_estate = 'kilimani'
 WHERE email = 'manager@example.com';
 ```
 
-Supported estate slugs are `kilimani`, `westlands`, and `muthaiga`. Estate managers see portfolio and rent aggregates for their assigned estate only. Occupancy is an estimate based on current-month rent-tracked units and verified vacant listings.
+Estate slugs are available from `GET /api/estates/`; seed listings add neighbourhood entries beyond Kilimani, Westlands, and Muthaiga. Estate managers see portfolio, rent aggregates, and viewing requests for their assigned estate only. Occupancy is an estimate based on current-month rent-tracked units and verified vacant listings.
 
 Estate managers can update availability for listings in their assigned estate. When a listing changes from unavailable to available, the API creates an in-app notification for each account that saved it. Availability, saved listings, and notifications persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
 
 Signed-in accounts can report maintenance issues for an estate and unit. Reporters can see their own requests; estate managers can see and update requests for their assigned estate. Estate managers can publish public announcements for their assigned estate. Requests and announcements persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
+
+Prospective tenants can request a viewing or contact the property agent from a listing. The request includes their contact details and is shown in the dashboard for the manager assigned to that property's estate. Viewing requests persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
 
 Rent records belong to the authenticated landlord account. Link each record to an estate to include it in that estate's aggregate dashboard. With `DATABASE_URL` configured, the API stores accounts and records in PostgreSQL; without it, the development server uses an in-memory store.
 

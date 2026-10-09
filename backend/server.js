@@ -32,6 +32,7 @@ const data = globalThis.__safeNyumbaData ??= {
   notifications: [],
   maintenanceRequests: [],
   announcements: [],
+  viewingRequests: [],
 }
 data.propertySubmissions ??= []
 data.rentPayments ??= []
@@ -40,6 +41,7 @@ data.savedProperties ??= []
 data.notifications ??= []
 data.maintenanceRequests ??= []
 data.announcements ??= []
+data.viewingRequests ??= []
 
 const seedEstates = [
   {
@@ -82,6 +84,11 @@ const seedProperties = [
     verified: true,
     vacant: true,
     image: 'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=1200&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+    ],
     image_alt: 'A modern apartment',
   },
   {
@@ -100,6 +107,11 @@ const seedProperties = [
     verified: true,
     vacant: true,
     image: 'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80',
+    ],
     image_alt: 'A family home',
   },
   {
@@ -118,6 +130,11 @@ const seedProperties = [
     verified: true,
     vacant: true,
     image: 'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600210491369-e753d80a41f3?auto=format&fit=crop&w=1200&q=80',
+    ],
     image_alt: 'A bright loft apartment',
   },
   {
@@ -136,6 +153,11 @@ const seedProperties = [
     verified: true,
     vacant: true,
     image: 'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+    images: [
+      'https://images.unsplash.com/photo-1512917774080-9991f1c4c750?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=80',
+    ],
     image_alt: 'A spacious bungalow',
   },
 ]
@@ -186,10 +208,45 @@ const nairobiNeighbourhoodHomes = [
     'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
     'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
   ][index % 4],
+  images: [
+    [
+      'https://images.unsplash.com/photo-1554995207-c18c203602cb?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1505693416388-ac5ce068fe85?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600210491369-e753d80a41f3?auto=format&fit=crop&w=1200&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+    ],
+    [
+      'https://images.unsplash.com/photo-1568605114967-8130f3a36994?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=80',
+      'https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=80',
+    ],
+  ][index % 4],
   image_alt: `A ${bedrooms}-bedroom home in ${location}`,
 }))
 
 seedProperties.push(...nairobiNeighbourhoodHomes)
+
+const knownEstateSlugs = new Set(seedEstates.map((estate) => estate.slug))
+seedProperties.forEach((property) => {
+  if (knownEstateSlugs.has(property.estate)) return
+  knownEstateSlugs.add(property.estate)
+  seedEstates.push({
+    slug: property.estate,
+    name: property.location,
+    area: property.city,
+    description: `Explore available homes and local rentals in ${property.location}.`,
+    image: property.image,
+  })
+})
 
 function saveData() {
   globalThis.__safeNyumbaData = data
@@ -287,6 +344,20 @@ async function initializeDatabase() {
         status TEXT NOT NULL DEFAULT 'open',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
         updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS viewing_requests (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL,
+        estate_slug TEXT NOT NULL,
+        request_type TEXT NOT NULL,
+        requester_name TEXT NOT NULL,
+        email TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        preferred_date DATE,
+        message TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
     await pool.query(`
@@ -437,6 +508,8 @@ function buildPropertyPayload(property) {
     vacant: property.vacant,
     image: property.image,
     imageAlt: property.image_alt,
+    images: property.images || [property.image],
+    availableDate: property.available_date || null,
   }
 }
 
@@ -527,7 +600,7 @@ app.get('/api/health/', (req, res) => {
 })
 
 app.get('/api/properties/', async (req, res) => {
-  const { location = '', budget, bedrooms } = req.query
+  const { location = '', budget, minRent, maxRent, bedrooms, kind, amenity } = req.query
 
   let filtered = (await getPropertiesWithAvailability()).filter((property) => property.vacant && property.verified)
 
@@ -536,32 +609,109 @@ app.get('/api/properties/', async (req, res) => {
     filtered = filtered.filter(
       (property) =>
         property.location.toLowerCase().includes(value) ||
-        property.city.toLowerCase().includes(value),
+      property.city.toLowerCase().includes(value) ||
+      property.estate.toLowerCase().includes(value),
     )
   }
 
-  if (budget) {
-    const maxBudget = Number(budget)
-    if (Number.isNaN(maxBudget)) {
-      return res.status(400).json({ budget: ['Enter a whole number.'] })
-    }
-    filtered = filtered.filter((property) => property.rent <= maxBudget)
+  const minimumRent = minRent ? Number(minRent) : 0
+  const maximumRent = maxRent ? Number(maxRent) : budget ? Number(budget) : Infinity
+  if ((minRent && (!Number.isInteger(minimumRent) || minimumRent < 0))
+    || ((maxRent || budget) && (!Number.isInteger(maximumRent) || maximumRent < 0))) {
+    return res.status(400).json({ rent: ['Enter a whole number greater than or equal to zero.'] })
+  }
+  if (minimumRent > maximumRent) {
+    return res.status(400).json({ rent: ['Minimum rent cannot exceed maximum rent.'] })
+  }
+  filtered = filtered.filter((property) => property.rent >= minimumRent && property.rent <= maximumRent)
+
+  if (kind) {
+    const value = String(kind).trim().toLowerCase()
+    filtered = filtered.filter((property) => property.kind.toLowerCase() === value)
+  }
+
+  if (amenity) {
+    const value = String(amenity).trim().toLowerCase()
+    filtered = filtered.filter((property) => property.amenity.toLowerCase().includes(value))
   }
 
   if (bedrooms) {
     const bedroomCount = Number(bedrooms)
-    if (Number.isNaN(bedroomCount)) {
-      return res.status(400).json({ bedrooms: ['Enter a whole number.'] })
+    if (!Number.isInteger(bedroomCount) || bedroomCount < 1) {
+      return res.status(400).json({ bedrooms: ['Enter a positive whole number.'] })
     }
 
     if (bedroomCount === 3) {
       filtered = filtered.filter((property) => property.bedrooms >= 3)
-    } else if (bedroomCount > 0) {
+    } else {
       filtered = filtered.filter((property) => property.bedrooms === bedroomCount)
     }
   }
 
   res.json(filtered.map(buildPropertyPayload))
+})
+
+app.post('/api/viewing-requests/', async (req, res) => {
+  const body = req.body || {}
+  const propertyId = typeof body.property_id === 'string' ? body.property_id.trim() : ''
+  const requestType = typeof body.request_type === 'string' ? body.request_type : ''
+  const requesterName = typeof body.requester_name === 'string' ? body.requester_name.trim() : ''
+  const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+  const preferredDate = typeof body.preferred_date === 'string' ? body.preferred_date : ''
+  const validPreferredDate = /^\d{4}-\d{2}-\d{2}$/.test(preferredDate)
+    && !Number.isNaN(Date.parse(`${preferredDate}T00:00:00.000Z`))
+    && new Date(`${preferredDate}T00:00:00.000Z`).toISOString().slice(0, 10) === preferredDate
+  const message = typeof body.message === 'string' ? body.message.trim() : ''
+  const property = (await getPropertiesWithAvailability()).find(
+    (entry) => entry.slug === propertyId && entry.vacant && entry.verified,
+  )
+  const errors = {}
+
+  if (!property) errors.property_id = ['Choose a currently available home.']
+  if (!['viewing', 'contact'].includes(requestType)) errors.request_type = ['Choose a valid request type.']
+  if (!requesterName || requesterName.length > 120) errors.requester_name = ['Enter your name (up to 120 characters).']
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) errors.email = ['Enter a valid email address.']
+  if (!phone || phone.length > 40) errors.phone = ['Enter a phone number (up to 40 characters).']
+  if (requestType === 'viewing' && !validPreferredDate) {
+    errors.preferred_date = ['Choose a preferred viewing date.']
+  } else if (requestType === 'viewing' && preferredDate < new Date().toISOString().slice(0, 10)) {
+    errors.preferred_date = ['Choose today or a future date.']
+  }
+  if (message.length > 2000) errors.message = ['Keep your message under 2,000 characters.']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const request = {
+    id: `viewing-${crypto.randomUUID()}`,
+    property_id: property.slug,
+    property_title: property.title,
+    estate_slug: property.estate,
+    request_type: requestType,
+    requester_name: requesterName,
+    email,
+    phone,
+    preferred_date: preferredDate || null,
+    message,
+    created_at: new Date().toISOString(),
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `INSERT INTO viewing_requests
+       (id, property_id, estate_slug, request_type, requester_name, email, phone, preferred_date, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+       RETURNING id, property_id, estate_slug, request_type, requester_name, email, phone, preferred_date, message, created_at`,
+      [
+        request.id, request.property_id, request.estate_slug, request.request_type, request.requester_name,
+        request.email, request.phone, request.preferred_date, request.message, request.created_at,
+      ],
+    )
+    return res.status(201).json({ ...result.rows[0], property_title: property.title })
+  }
+
+  data.viewingRequests.push(request)
+  saveData()
+  res.status(201).json(request)
 })
 
 app.get('/api/estates/', async (req, res) => {
@@ -890,17 +1040,19 @@ app.get('/api/announcements/', async (req, res) => {
 
   if (pool && databaseReady) {
     const result = await pool.query(
-      `SELECT a.id, a.estate_slug, e.name AS estate_name, a.title, a.body, a.created_at,
+      `SELECT a.id, a.estate_slug, a.title, a.body, a.created_at,
               u.first_name AS author_name
        FROM estate_announcements a
        INNER JOIN users u ON u.id = a.author_id
-       INNER JOIN (VALUES ('kilimani', 'Kilimani'), ('westlands', 'Westlands'), ('muthaiga', 'Muthaiga'))
-         AS e(slug, name) ON e.slug = a.estate_slug
        WHERE ($1 = '' OR a.estate_slug = $1)
        ORDER BY a.created_at DESC`,
       [estateSlug],
     )
-    return res.json(result.rows)
+    const estatesBySlug = new Map(seedEstates.map((estate) => [estate.slug, estate.name]))
+    return res.json(result.rows.map((announcement) => ({
+      ...announcement,
+      estate_name: estatesBySlug.get(announcement.estate_slug),
+    })))
   }
 
   const estatesBySlug = new Map(seedEstates.map((estate) => [estate.slug, estate.name]))
@@ -1230,6 +1382,20 @@ app.get('/api/dashboard/estate/', authRequired, roleRequired('estate_manager', '
     }
     return totals
   }, { received: 0, outstanding: 0, overdue: 0 })
+  const viewingRequests = pool && databaseReady
+    ? (await pool.query(
+      `SELECT id, property_id, request_type, requester_name, email, phone, preferred_date, message, created_at
+       FROM viewing_requests
+       WHERE estate_slug = $1
+       ORDER BY created_at DESC`,
+      [estate.slug],
+    )).rows.map((request) => ({
+      ...request,
+      property_title: seedProperties.find((property) => property.slug === request.property_id)?.title || request.property_id,
+    }))
+    : data.viewingRequests
+      .filter((request) => request.estate_slug === estate.slug)
+      .sort((first, second) => second.created_at.localeCompare(first.created_at))
 
   res.json({
     estate: { slug: estate.slug, name: estate.name, area: estate.area },
@@ -1241,6 +1407,7 @@ app.get('/api/dashboard/estate/', authRequired, roleRequired('estate_manager', '
       ...summary,
     },
     properties,
+    viewingRequests,
   })
 })
 
