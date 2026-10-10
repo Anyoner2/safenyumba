@@ -23,6 +23,7 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 - `GET /api/auth/me/` and `POST /api/auth/logout/` with a token
 - `GET /api/rent-payments/`, `POST /api/rent-payments/`, and `PATCH /api/rent-payments/:id/paid/` with a token
 - `GET /api/dashboard/landlord/` and `GET /api/dashboard/estate/` with a token and the matching account role
+- `POST /api/owner/properties/` and owner-scoped `POST`/`PATCH /api/owner/properties/:propertyId/units/` operations with a landlord token
 - `GET /api/saved-properties/`, `POST /api/saved-properties/:id/`, and `DELETE /api/saved-properties/:id/` with a token
 - `GET /api/notifications/` and `PATCH /api/notifications/read-all/` with a token
 - `PATCH /api/properties/:id/vacancy/` with an assigned estate-manager token
@@ -43,7 +44,9 @@ Estate managers can update availability for listings in their assigned estate. W
 
 Signed-in accounts can report maintenance issues for an estate and unit. Reporters can see their own requests; estate managers can see and update requests for their assigned estate. Estate managers can publish public announcements for their assigned estate. Requests and announcements persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
 
-Prospective tenants can request a viewing or contact the property agent from a listing. The request includes their contact details and is shown in the dashboard for the manager assigned to that property's estate. Viewing requests persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
+Property owners can register immediately published properties from the landlord dashboard, add rentable units with monthly rent and bedroom count, manage tenant details, and set each unit to vacant, occupied, or reserved. Upload up to five JPEG, PNG, or WebP photos per property (1 MB per photo); photos are stored in PostgreSQL when `DATABASE_URL` is configured and in the development in-memory store otherwise. Unit updates and property records are private to their owner.
+
+Prospective tenants can request a viewing or contact the property owner from a listing. The request includes their contact details and appears in the property owner's dashboard (or the estate manager's dashboard for seed listings). Viewing requests persist in PostgreSQL when `DATABASE_URL` is configured; otherwise they use the development in-memory store.
 
 Rent records belong to the authenticated landlord account. Link each record to an estate to include it in that estate's aggregate dashboard. With `DATABASE_URL` configured, the API stores accounts and records in PostgreSQL; without it, the development server uses an in-memory store.
 

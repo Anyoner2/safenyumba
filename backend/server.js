@@ -33,6 +33,8 @@ const data = globalThis.__safeNyumbaData ??= {
   maintenanceRequests: [],
   announcements: [],
   viewingRequests: [],
+  ownerProperties: [],
+  ownerUnits: [],
 }
 data.propertySubmissions ??= []
 data.rentPayments ??= []
@@ -42,6 +44,8 @@ data.notifications ??= []
 data.maintenanceRequests ??= []
 data.announcements ??= []
 data.viewingRequests ??= []
+data.ownerProperties ??= []
+data.ownerUnits ??= []
 
 const seedEstates = [
   {
@@ -351,12 +355,41 @@ async function initializeDatabase() {
         id TEXT PRIMARY KEY,
         property_id TEXT NOT NULL,
         estate_slug TEXT NOT NULL,
+        owner_id TEXT REFERENCES users(id) ON DELETE CASCADE,
         request_type TEXT NOT NULL,
         requester_name TEXT NOT NULL,
         email TEXT NOT NULL,
         phone TEXT NOT NULL,
         preferred_date DATE,
         message TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    await pool.query('ALTER TABLE viewing_requests ADD COLUMN IF NOT EXISTS owner_id TEXT REFERENCES users(id) ON DELETE CASCADE')
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS owner_properties (
+        id TEXT PRIMARY KEY,
+        owner_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        city TEXT NOT NULL,
+        location TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        amenity TEXT NOT NULL DEFAULT '',
+        photos JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS owner_units (
+        id TEXT PRIMARY KEY,
+        property_id TEXT NOT NULL REFERENCES owner_properties(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        bedrooms INTEGER NOT NULL CHECK (bedrooms > 0),
+        rent INTEGER NOT NULL CHECK (rent > 0),
+        status TEXT NOT NULL CHECK (status IN ('vacant', 'occupied', 'reserved')),
+        tenant_name TEXT NOT NULL DEFAULT '',
+        tenant_email TEXT NOT NULL DEFAULT '',
+        tenant_phone TEXT NOT NULL DEFAULT '',
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
@@ -479,10 +512,76 @@ async function getPropertiesWithAvailability() {
     availability = new Map(Object.entries(data.propertyAvailability))
   }
 
-  return seedProperties.map((property) => ({
+  const ownerProperties = await getAllOwnerProperties()
+  const ownerUnits = await getOwnerUnitsForProperties(ownerProperties.map((property) => property.id))
+  const unitsByPropertyId = new Map()
+  ownerUnits.forEach((unit) => {
+    const units = unitsByPropertyId.get(unit.property_id) || []
+    units.push(unit)
+    unitsByPropertyId.set(unit.property_id, units)
+  })
+  const registeredProperties = ownerProperties.flatMap((property) =>
+    (unitsByPropertyId.get(property.id) || []).map((unit) => ({
+      slug: `owner-unit-${unit.id}`,
+      owner_id: property.owner_id,
+      estate: property.id,
+      title: `${property.name} · ${unit.name}`,
+      location: property.location,
+      city: property.city,
+      rent: unit.rent,
+      bedrooms: unit.bedrooms,
+      amenity: property.amenity,
+      kind: property.kind,
+      verified: true,
+      vacant: unit.status === 'vacant',
+      status: unit.status,
+      image: property.photos[0] || seedProperties[0].image,
+      images: property.photos.length ? property.photos : [seedProperties[0].image],
+      image_alt: `${unit.name} at ${property.name}`,
+      available_date: null,
+    })),
+  )
+
+  return [...seedProperties, ...registeredProperties].map((property) => ({
     ...property,
     vacant: availability.has(property.slug) ? availability.get(property.slug) : property.vacant,
   }))
+}
+
+async function getAllOwnerProperties() {
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      'SELECT id, owner_id, name, city, location, kind, amenity, photos, created_at FROM owner_properties ORDER BY created_at DESC',
+    )
+    return result.rows
+  }
+  return data.ownerProperties
+}
+
+async function getOwnerPropertiesForUser(ownerId) {
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      'SELECT id, owner_id, name, city, location, kind, amenity, photos, created_at FROM owner_properties WHERE owner_id = $1 ORDER BY created_at DESC',
+      [ownerId],
+    )
+    return result.rows
+  }
+  return data.ownerProperties.filter((property) => property.owner_id === ownerId)
+}
+
+async function getOwnerUnitsForProperties(propertyIds) {
+  if (!propertyIds.length) return []
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT id, property_id, name, bedrooms, rent, status, tenant_name, tenant_email, tenant_phone, created_at
+       FROM owner_units
+       WHERE property_id = ANY($1::text[])
+       ORDER BY created_at`,
+      [propertyIds],
+    )
+    return result.rows
+  }
+  return data.ownerUnits.filter((unit) => propertyIds.includes(unit.property_id))
 }
 
 function findSeedProperty(propertyId) {
@@ -510,6 +609,7 @@ function buildPropertyPayload(property) {
     imageAlt: property.image_alt,
     images: property.images || [property.image],
     availableDate: property.available_date || null,
+    ...(property.owner_id ? { ownerListing: true } : {}),
   }
 }
 
@@ -579,7 +679,7 @@ async function getRentPaymentsForEstate(estateSlug) {
 await initializeDatabase()
 
 app.use(cors({ origin: true, credentials: true }))
-app.use(express.json())
+app.use(express.json({ limit: '12mb' }))
 
 app.get('/', (req, res) => {
   res.json({
@@ -686,6 +786,7 @@ app.post('/api/viewing-requests/', async (req, res) => {
     property_id: property.slug,
     property_title: property.title,
     estate_slug: property.estate,
+    owner_id: property.owner_id || null,
     request_type: requestType,
     requester_name: requesterName,
     email,
@@ -698,12 +799,13 @@ app.post('/api/viewing-requests/', async (req, res) => {
   if (pool && databaseReady) {
     const result = await pool.query(
       `INSERT INTO viewing_requests
-       (id, property_id, estate_slug, request_type, requester_name, email, phone, preferred_date, message, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-       RETURNING id, property_id, estate_slug, request_type, requester_name, email, phone, preferred_date, message, created_at`,
+       (id, property_id, estate_slug, owner_id, request_type, requester_name, email, phone, preferred_date, message, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+       RETURNING id, property_id, estate_slug, owner_id, request_type, requester_name, email, phone, preferred_date, message, created_at`,
       [
-        request.id, request.property_id, request.estate_slug, request.request_type, request.requester_name,
-        request.email, request.phone, request.preferred_date, request.message, request.created_at,
+        request.id, request.property_id, request.estate_slug, request.owner_id, request.request_type,
+        request.requester_name, request.email, request.phone, request.preferred_date, request.message,
+        request.created_at,
       ],
     )
     return res.status(201).json({ ...result.rows[0], property_title: property.title })
@@ -712,6 +814,224 @@ app.post('/api/viewing-requests/', async (req, res) => {
   data.viewingRequests.push(request)
   saveData()
   res.status(201).json(request)
+})
+
+function parseOwnerPhotos(photos) {
+  if (!Array.isArray(photos) || photos.length > 5) {
+    return { error: 'Upload up to 5 photos.' }
+  }
+
+  const supportedTypes = new Set(['image/jpeg', 'image/png', 'image/webp'])
+  for (const photo of photos) {
+    const match = typeof photo === 'string'
+      ? photo.match(/^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/)
+      : null
+    if (!match || !supportedTypes.has(match[1])) {
+      return { error: 'Photos must be JPEG, PNG, or WebP image files.' }
+    }
+
+    const bytes = Buffer.from(match[2], 'base64')
+    if (!bytes.length || bytes.length > 1024 * 1024) {
+      return { error: 'Each photo must be smaller than 1 MB.' }
+    }
+    const validSignature = match[1] === 'image/jpeg'
+      ? bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff
+      : match[1] === 'image/png'
+        ? bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+        : bytes.toString('ascii', 0, 4) === 'RIFF'
+          && bytes.toString('ascii', 8, 12) === 'WEBP'
+    if (!validSignature) return { error: 'A photo does not match its image file type.' }
+  }
+  return { photos }
+}
+
+function serializeOwnerUnit(unit) {
+  return {
+    id: unit.id,
+    property_id: unit.property_id,
+    name: unit.name,
+    bedrooms: Number(unit.bedrooms),
+    rent: Number(unit.rent),
+    status: unit.status,
+    tenant_name: unit.tenant_name || '',
+    tenant_email: unit.tenant_email || '',
+    tenant_phone: unit.tenant_phone || '',
+    created_at: unit.created_at,
+  }
+}
+
+async function notifySavedHomeUsers(property) {
+  const createdAt = new Date().toISOString()
+  const title = `${property.title} is available again`
+  const message = `${property.title} in ${property.location} is available to view.`
+  if (pool && databaseReady) {
+    const result = await pool.query('SELECT user_id FROM saved_properties WHERE property_id = $1', [property.slug])
+    for (const { user_id: userId } of result.rows) {
+      await pool.query(
+        `INSERT INTO notifications (id, user_id, property_id, notification_type, title, message, created_at)
+         VALUES ($1, $2, $3, 'vacancy', $4, $5, $6)`,
+        [`notification-${crypto.randomUUID()}`, userId, property.slug, title, message, createdAt],
+      )
+    }
+    return result.rowCount
+  }
+
+  const userIds = data.savedProperties
+    .filter((entry) => entry.property_id === property.slug)
+    .map((entry) => entry.user_id)
+  data.notifications.push(...userIds.map((userId) => ({
+    id: `notification-${crypto.randomUUID()}`,
+    user_id: userId,
+    property_id: property.slug,
+    notification_type: 'vacancy',
+    title,
+    message,
+    created_at: createdAt,
+    read_at: null,
+  })))
+  saveData()
+  return userIds.length
+}
+
+app.post('/api/owner/properties/', authRequired, roleRequired('landlord', 'Only owner accounts can register properties.'), async (req, res) => {
+  const body = req.body || {}
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const city = typeof body.city === 'string' ? body.city.trim() : ''
+  const location = typeof body.location === 'string' ? body.location.trim() : ''
+  const kind = typeof body.kind === 'string' ? body.kind : ''
+  const amenity = typeof body.amenity === 'string' ? body.amenity.trim() : ''
+  const photoResult = parseOwnerPhotos(body.photos ?? [])
+  const errors = {}
+
+  if (!name || name.length > 160) errors.name = ['Enter a property name (up to 160 characters).']
+  if (!city || city.length > 120) errors.city = ['Enter a city or county (up to 120 characters).']
+  if (!location || location.length > 120) errors.location = ['Enter a neighbourhood or estate (up to 120 characters).']
+  if (!['Apartment', 'Flat', 'Townhouse', 'Maisonette', 'Bungalow', 'Bedsitter'].includes(kind)) {
+    errors.kind = ['Choose a supported property type.']
+  }
+  if (amenity.length > 500) errors.amenity = ['Keep amenities under 500 characters.']
+  if (photoResult.error) errors.photos = [photoResult.error]
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const property = {
+    id: `owner-property-${crypto.randomUUID()}`,
+    owner_id: req.user.id,
+    name,
+    city,
+    location,
+    kind,
+    amenity,
+    photos: photoResult.photos,
+    created_at: new Date().toISOString(),
+  }
+  if (pool && databaseReady) {
+    await pool.query(
+      `INSERT INTO owner_properties (id, owner_id, name, city, location, kind, amenity, photos, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [property.id, property.owner_id, property.name, property.city, property.location, property.kind,
+        property.amenity, JSON.stringify(property.photos), property.created_at],
+    )
+  } else {
+    data.ownerProperties.push(property)
+    saveData()
+  }
+
+  res.status(201).json({ ...property, units: [] })
+})
+
+app.post('/api/owner/properties/:propertyId/units/', authRequired, roleRequired('landlord', 'Only owner accounts can manage units.'), async (req, res) => {
+  const properties = await getOwnerPropertiesForUser(req.user.id)
+  const property = properties.find((entry) => entry.id === req.params.propertyId)
+  if (!property) return res.status(404).json({ detail: 'Property not found in your portfolio.' })
+
+  const body = req.body || {}
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const bedrooms = Number(body.bedrooms)
+  const rent = Number(body.rent)
+  const errors = {}
+  if (!name || name.length > 120) errors.name = ['Enter a unit name (up to 120 characters).']
+  if (!Number.isSafeInteger(bedrooms) || bedrooms < 1 || bedrooms > 20) errors.bedrooms = ['Enter a bedroom count from 1 to 20.']
+  if (!Number.isSafeInteger(rent) || rent < 1 || rent > 1000000000) errors.rent = ['Enter monthly rent from KSh 1 to KSh 1,000,000,000.']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const unit = {
+    id: `owner-unit-${crypto.randomUUID()}`,
+    property_id: property.id,
+    name,
+    bedrooms,
+    rent,
+    status: 'vacant',
+    tenant_name: '',
+    tenant_email: '',
+    tenant_phone: '',
+    created_at: new Date().toISOString(),
+  }
+  if (pool && databaseReady) {
+    await pool.query(
+      `INSERT INTO owner_units (id, property_id, name, bedrooms, rent, status, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [unit.id, unit.property_id, unit.name, unit.bedrooms, unit.rent, unit.status, unit.created_at],
+    )
+  } else {
+    data.ownerUnits.push(unit)
+    saveData()
+  }
+  res.status(201).json(serializeOwnerUnit(unit))
+})
+
+app.patch('/api/owner/properties/:propertyId/units/:unitId/', authRequired, roleRequired('landlord', 'Only owner accounts can manage units.'), async (req, res) => {
+  const properties = await getOwnerPropertiesForUser(req.user.id)
+  const property = properties.find((entry) => entry.id === req.params.propertyId)
+  if (!property) return res.status(404).json({ detail: 'Property not found in your portfolio.' })
+  const units = await getOwnerUnitsForProperties([property.id])
+  const current = units.find((entry) => entry.id === req.params.unitId)
+  if (!current) return res.status(404).json({ detail: 'Unit not found in this property.' })
+
+  const body = req.body || {}
+  const name = body.name === undefined ? current.name : typeof body.name === 'string' ? body.name.trim() : ''
+  const bedrooms = body.bedrooms === undefined ? Number(current.bedrooms) : Number(body.bedrooms)
+  const rent = body.rent === undefined ? Number(current.rent) : Number(body.rent)
+  const status = body.status === undefined ? current.status : body.status
+  const tenantName = status === 'occupied'
+    ? (typeof body.tenant_name === 'string' ? body.tenant_name.trim() : current.tenant_name || '')
+    : ''
+  const tenantEmail = status === 'occupied'
+    ? (typeof body.tenant_email === 'string' ? body.tenant_email.trim().toLowerCase() : current.tenant_email || '')
+    : ''
+  const tenantPhone = status === 'occupied'
+    ? (typeof body.tenant_phone === 'string' ? body.tenant_phone.trim() : current.tenant_phone || '')
+    : ''
+  const errors = {}
+  if (!name || name.length > 120) errors.name = ['Enter a unit name (up to 120 characters).']
+  if (!Number.isSafeInteger(bedrooms) || bedrooms < 1 || bedrooms > 20) errors.bedrooms = ['Enter a bedroom count from 1 to 20.']
+  if (!Number.isSafeInteger(rent) || rent < 1 || rent > 1000000000) errors.rent = ['Enter monthly rent from KSh 1 to KSh 1,000,000,000.']
+  if (!['vacant', 'occupied', 'reserved'].includes(status)) errors.status = ['Choose Vacant, Occupied, or Reserved.']
+  if (status === 'occupied' && (!tenantName || tenantName.length > 120)) errors.tenant_name = ['Enter the current tenant name (up to 120 characters).']
+  if (status === 'occupied' && (!tenantPhone || tenantPhone.length > 40)) errors.tenant_phone = ['Enter the current tenant phone number.']
+  if (tenantEmail && (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(tenantEmail) || tenantEmail.length > 254)) errors.tenant_email = ['Enter a valid tenant email address.']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const updated = { ...current, name, bedrooms, rent, status, tenant_name: tenantName, tenant_email: tenantEmail, tenant_phone: tenantPhone }
+  if (pool && databaseReady) {
+    await pool.query(
+      `UPDATE owner_units
+       SET name = $1, bedrooms = $2, rent = $3, status = $4, tenant_name = $5, tenant_email = $6, tenant_phone = $7
+       WHERE id = $8 AND property_id = $9`,
+      [updated.name, updated.bedrooms, updated.rent, updated.status, updated.tenant_name,
+        updated.tenant_email, updated.tenant_phone, updated.id, property.id],
+    )
+  } else {
+    const index = data.ownerUnits.findIndex((unit) => unit.id === updated.id)
+    data.ownerUnits[index] = updated
+    saveData()
+  }
+  let notificationsCreated = 0
+  if (updated.status === 'vacant' && current.status !== 'vacant') {
+    const currentProperty = await getPropertiesWithAvailability()
+    const publicProperty = currentProperty.find((entry) => entry.slug === `owner-unit-${updated.id}`)
+    if (publicProperty) notificationsCreated = await notifySavedHomeUsers(publicProperty)
+  }
+  res.json({ ...serializeOwnerUnit(updated), notificationsCreated })
 })
 
 app.get('/api/estates/', async (req, res) => {
@@ -739,7 +1059,7 @@ app.get('/api/saved-properties/', authRequired, async (req, res) => {
 })
 
 app.post('/api/saved-properties/:id/', authRequired, async (req, res) => {
-  const property = findSeedProperty(req.params.id)
+  const property = (await getPropertiesWithAvailability()).find((entry) => entry.slug === req.params.id)
   if (!property || !property.verified) return res.status(404).json({ detail: 'Property not found.' })
 
   if (pool && databaseReady) {
@@ -790,8 +1110,11 @@ app.get('/api/notifications/', authRequired, async (req, res) => {
       .sort((first, second) => second.created_at.localeCompare(first.created_at))
   }
 
+  const propertiesById = new Map(
+    (await getPropertiesWithAvailability()).map((property) => [property.slug, property]),
+  )
   res.json(notifications.map((notification) => {
-    const property = findSeedProperty(notification.property_id)
+    const property = propertiesById.get(notification.property_id) || findSeedProperty(notification.property_id)
     return {
       id: notification.id,
       type: notification.notification_type,
@@ -1318,6 +1641,35 @@ app.get('/api/auth/me/', authRequired, (req, res) => {
 })
 
 app.get('/api/dashboard/landlord/', authRequired, roleRequired('landlord', 'This dashboard is for landlord accounts.'), async (req, res) => {
+  const ownerProperties = await getOwnerPropertiesForUser(req.user.id)
+  const ownerUnits = await getOwnerUnitsForProperties(ownerProperties.map((property) => property.id))
+  const unitsByPropertyId = new Map()
+  ownerUnits.forEach((unit) => {
+    const units = unitsByPropertyId.get(unit.property_id) || []
+    units.push(serializeOwnerUnit(unit))
+    unitsByPropertyId.set(unit.property_id, units)
+  })
+  const properties = ownerProperties.map((property) => ({
+    ...property,
+    units: unitsByPropertyId.get(property.id) || [],
+  }))
+  const viewingRequests = pool && databaseReady
+    ? (await pool.query(
+      `SELECT id, property_id, request_type, requester_name, email, phone, preferred_date, message, created_at
+       FROM viewing_requests
+       WHERE owner_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id],
+    )).rows.map((request) => ({
+      ...request,
+      property_title: properties.find((property) =>
+        property.units.some((unit) => `owner-unit-${unit.id}` === request.property_id),
+      )?.name || 'Your property',
+    }))
+    : data.viewingRequests
+      .filter((request) => request.owner_id === req.user.id)
+      .sort((first, second) => second.created_at.localeCompare(first.created_at))
+
   const payments = await getRentPaymentsForUser(req.user.id)
   const now = new Date()
   const currentPeriod = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -1347,6 +1699,8 @@ app.get('/api/dashboard/landlord/', authRequired, roleRequired('landlord', 'This
       ),
     },
     recentPayments: payments.slice(0, 5),
+    properties,
+    viewingRequests,
   })
 })
 

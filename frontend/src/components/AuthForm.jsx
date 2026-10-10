@@ -60,7 +60,7 @@ function AuthForm({ mode }) {
           <span className="eyebrow">Safe Nyumba account</span>
           <h2>{isRegister ? 'Create your account' : 'Login'}</h2>
           <p className="auth-subtitle">
-            {isRegister ? 'Save homes and arrange viewings in one place.' : 'Sign in to continue your house search.'}
+            {isRegister ? 'Save homes, request viewings, or manage your property portfolio.' : 'Sign in to continue your house search.'}
           </p>
           {isRegister && (
             <div className="form-field">

@@ -487,6 +487,40 @@ img { display: block; max-width: 100%; }
 .estate-inquiry-contact a { color: var(--green); text-decoration: none; }
 .estate-inquiry-contact a:hover { text-decoration: underline; }
 .estate-inquiry-date, .estate-inquiry-message { margin: 9px 0 0; color: #52645a; font-size: 12px; line-height: 1.55; }
+.owner-register-panel, .owner-inquiries-panel { margin-bottom: 20px; }
+.owner-property-form { display: grid; gap: 16px; }
+.owner-property-form .property-field > span { display: inline-flex; align-items: center; gap: 6px; }
+.owner-property-form input[type="file"] { padding: 9px; }
+.owner-form-submit { justify-self: start; }
+.owner-properties-panel { margin-bottom: 20px; }
+.owner-property-list { display: grid; gap: 18px; }
+.owner-property { border: 1px solid var(--line); padding: 16px; }
+.owner-property-heading { display: flex; align-items: center; gap: 14px; padding-bottom: 14px; }
+.owner-property-heading > img, .owner-property-placeholder { width: 80px; height: 64px; flex: 0 0 auto; border-radius: 4px; object-fit: cover; }
+.owner-property-placeholder { display: grid; place-items: center; background: #eef1e8; color: var(--green); }
+.owner-property-heading h3 { margin: 0; font-size: 16px; }
+.owner-property-heading p { margin: 5px 0 0; color: var(--muted); font-size: 11px; }
+.owner-unit-list { border-top: 1px solid var(--line); }
+.owner-unit { border-bottom: 1px solid var(--line); padding: 13px 0; }
+.owner-unit-summary { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 14px; }
+.owner-unit-main { display: grid; gap: 5px; min-width: 0; }
+.owner-unit-main > strong { font-size: 13px; }
+.owner-unit-main > span { color: var(--muted); font-size: 11px; }
+.owner-tenant-summary { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.owner-unit-status { text-transform: capitalize; }
+.owner-status-vacant { background: #e8f3e7; color: #276c43; }
+.owner-status-occupied { background: #f2e9e5; color: #8f4d36; }
+.owner-status-reserved { background: #f3f0df; color: #75621d; }
+.owner-empty-units { margin: 0; border-top: 1px solid var(--line); }
+.owner-add-unit { margin-top: 14px; border-radius: 4px; padding: 14px; background: #f7f9f6; }
+.owner-add-unit h4 { display: flex; align-items: center; gap: 6px; margin: 0 0 12px; font-size: 12px; }
+.owner-add-unit-fields { display: grid; grid-template-columns: 1.4fr .7fr 1fr auto; align-items: end; gap: 12px; }
+.owner-add-unit-fields .button { min-height: 44px; padding-inline: 12px; font-size: 11px; }
+.owner-unit-edit { display: grid; gap: 14px; }
+.owner-tenant-fields { border: 1px solid var(--line); padding: 12px; }
+.owner-tenant-fields legend { display: inline-flex; align-items: center; gap: 5px; padding-inline: 5px; color: var(--green); font-size: 11px; font-weight: 700; }
+.owner-unit-edit-actions { display: flex; gap: 10px; }
+.owner-unit-edit-actions .button { min-height: 40px; font-size: 11px; }
 .estate-dashboard-property { display: grid; grid-template-columns: minmax(220px, 1fr) auto auto; align-items: center; gap: 18px; border-top: 1px solid var(--line); padding: 16px 4px; }
 .estate-dashboard-property h3 { margin: 0; font-size: 14px; }
 .estate-dashboard-property p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
@@ -624,6 +658,7 @@ img { display: block; max-width: 100%; }
   .rent-table { min-width: 760px; }
   .dashboard-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .estate-dashboard-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .owner-add-unit-fields { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 420px) {
@@ -647,6 +682,10 @@ img { display: block; max-width: 100%; }
   .dashboard-panel { padding: 18px; }
   .dashboard-record { grid-template-columns: 1fr auto; gap: 8px; }
   .estate-dashboard-property { grid-template-columns: 1fr auto; gap: 10px; }
+  .owner-unit-summary { grid-template-columns: 1fr auto; }
+  .owner-unit-summary .availability-toggle { grid-column: 1 / -1; }
+  .owner-add-unit-fields { grid-template-columns: 1fr; }
+  .owner-form-submit { width: 100%; }
   .estate-dashboard-property > strong { grid-column: 1; }
   .estate-dashboard-property > .rent-status { grid-column: 2; grid-row: 2; }
   .dashboard-panel-heading { align-items: flex-start; flex-direction: column; }

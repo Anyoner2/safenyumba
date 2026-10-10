@@ -3,6 +3,7 @@ import { ArrowRight, CircleDollarSign, Clock3, Home, Wallet } from 'lucide-react
 import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '../auth.jsx'
 import { getLandlordDashboard } from '../api.js'
+import OwnerPortfolio from '../components/OwnerPortfolio.jsx'
 
 const currency = new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 })
 
@@ -17,6 +18,12 @@ function LandlordDashboard() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [todayDate] = useState(today)
+
+  async function refreshDashboard() {
+    setError('')
+    const result = await getLandlordDashboard()
+    setDashboard(result)
+  }
 
   useEffect(() => {
     let active = true
@@ -49,9 +56,9 @@ function LandlordDashboard() {
       <div className="container">
         <header className="listing-header">
           <div>
-            <span className="eyebrow">Landlord workspace</span>
+            <span className="eyebrow">Property owner workspace</span>
             <h1 className="page-title">Your dashboard</h1>
-            <p>See how rent is tracking across the units you manage.</p>
+            <p>Register properties, manage units and tenants, and respond to rental enquiries.</p>
           </div>
           <div className="dashboard-header-actions">
             <Link className="button button-light" to="/tenancy-documents/">Prepare tenancy document</Link>
@@ -70,6 +77,12 @@ function LandlordDashboard() {
             </article>
           ))}
         </div>
+
+        <OwnerPortfolio
+          properties={dashboard?.properties || []}
+          viewingRequests={dashboard?.viewingRequests || []}
+          onRefresh={refreshDashboard}
+        />
 
         <section className="dashboard-panel" aria-labelledby="landlord-recent-title">
           <div className="dashboard-panel-heading">

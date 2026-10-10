@@ -80,6 +80,21 @@ export function getLandlordDashboard() {
   return request('/dashboard/landlord/')
 }
 
+export function createOwnerProperty(property) {
+  return request('/owner/properties/', { method: 'POST', body: property })
+}
+
+export function createOwnerUnit(propertyId, unit) {
+  return request(`/owner/properties/${encodeURIComponent(propertyId)}/units/`, { method: 'POST', body: unit })
+}
+
+export function updateOwnerUnit(propertyId, unitId, unit) {
+  return request(
+    `/owner/properties/${encodeURIComponent(propertyId)}/units/${encodeURIComponent(unitId)}/`,
+    { method: 'PATCH', body: unit },
+  )
+}
+
 export function getEstateDashboard() {
   return request('/dashboard/estate/')
 }

@@ -93,3 +93,131 @@ test('viewing requests are validated and appear only in their assigned estate da
     server.close()
   }
 })
+
+test('owners manage their own properties, unit availability, rent, and tenant details', async () => {
+  const { server, baseUrl } = await startServer()
+
+  try {
+    const ownerEmail = `portfolio-${crypto.randomUUID()}@example.com`
+    const otherEmail = `portfolio-other-${crypto.randomUUID()}@example.com`
+    const ownerToken = await register(baseUrl, ownerEmail)
+    const otherToken = await register(baseUrl, otherEmail)
+    const ownerHeaders = { Authorization: `Token ${ownerToken}`, 'Content-Type': 'application/json' }
+    const otherHeaders = { Authorization: `Token ${otherToken}`, 'Content-Type': 'application/json' }
+
+    const invalidPhoto = await fetch(`${baseUrl}/api/owner/properties/`, {
+      method: 'POST',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: 'Greenview Apartments',
+        city: 'Nairobi',
+        location: 'Kilimani',
+        kind: 'Apartment',
+        photos: ['data:image/png;base64,ZmFrZQ=='],
+      }),
+    })
+    assert.equal(invalidPhoto.status, 400)
+
+    const photo = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/6ggAAAAASUVORK5CYII='
+    const propertyResponse = await fetch(`${baseUrl}/api/owner/properties/`, {
+      method: 'POST',
+      headers: ownerHeaders,
+      body: JSON.stringify({
+        name: 'Greenview Apartments',
+        city: 'Nairobi',
+        location: 'Kilimani',
+        kind: 'Apartment',
+        amenity: 'Lift, security',
+        photos: [photo],
+      }),
+    })
+    assert.equal(propertyResponse.status, 201)
+    const property = await propertyResponse.json()
+
+    const unitResponse = await fetch(`${baseUrl}/api/owner/properties/${property.id}/units/`, {
+      method: 'POST',
+      headers: ownerHeaders,
+      body: JSON.stringify({ name: 'Block A, Unit 4', bedrooms: 2, rent: 48000 }),
+    })
+    assert.equal(unitResponse.status, 201)
+    const unit = await unitResponse.json()
+    assert.equal(unit.status, 'vacant')
+
+    const saveResponse = await fetch(`${baseUrl}/api/saved-properties/owner-unit-${unit.id}/`, {
+      method: 'POST',
+      headers: otherHeaders,
+    })
+    assert.equal(saveResponse.status, 201)
+
+    const privateUnit = await fetch(
+      `${baseUrl}/api/owner/properties/${property.id}/units/${unit.id}/`,
+      { method: 'PATCH', headers: otherHeaders, body: JSON.stringify({ status: 'occupied' }) },
+    )
+    assert.equal(privateUnit.status, 404)
+
+    const occupied = await fetch(
+      `${baseUrl}/api/owner/properties/${property.id}/units/${unit.id}/`,
+      {
+        method: 'PATCH',
+        headers: ownerHeaders,
+        body: JSON.stringify({
+          rent: 52000,
+          status: 'occupied',
+          tenant_name: 'Amina Tenant',
+          tenant_email: 'amina@example.com',
+          tenant_phone: '+254700000001',
+        }),
+      },
+    )
+    assert.equal(occupied.status, 200)
+    assert.equal((await occupied.json()).rent, 52000)
+
+    const publicHomes = await (await fetch(`${baseUrl}/api/properties/?location=Kilimani`)).json()
+    assert.equal(publicHomes.some((home) => home.id === `owner-unit-${unit.id}`), false)
+
+    const vacant = await fetch(
+      `${baseUrl}/api/owner/properties/${property.id}/units/${unit.id}/`,
+      { method: 'PATCH', headers: ownerHeaders, body: JSON.stringify({ status: 'vacant' }) },
+    )
+    const vacancyUpdate = await vacant.json()
+    assert.equal(vacancyUpdate.status, 'vacant')
+    assert.equal(vacancyUpdate.notificationsCreated, 1)
+    const vacancyAlerts = await (await fetch(`${baseUrl}/api/notifications/`, {
+      headers: { Authorization: `Token ${otherToken}` },
+    })).json()
+    assert.equal(vacancyAlerts[0].property.id, `owner-unit-${unit.id}`)
+
+    const publishedHomes = await (await fetch(`${baseUrl}/api/properties/?location=Kilimani&minRent=52000`)).json()
+    const publishedUnit = publishedHomes.find((home) => home.id === `owner-unit-${unit.id}`)
+    assert.equal(publishedUnit.title, 'Greenview Apartments · Block A, Unit 4')
+    assert.equal(publishedUnit.image, photo)
+
+    const viewing = await fetch(`${baseUrl}/api/viewing-requests/`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        property_id: publishedUnit.id,
+        request_type: 'contact',
+        requester_name: 'Prospective Tenant',
+        email: 'prospective@example.com',
+        phone: '+254700000002',
+      }),
+    })
+    assert.equal(viewing.status, 201)
+
+    const ownerDashboard = await fetch(`${baseUrl}/api/dashboard/landlord/`, {
+      headers: { Authorization: `Token ${ownerToken}` },
+    })
+    const dashboard = await ownerDashboard.json()
+    assert.equal(dashboard.properties[0].units[0].tenant_name, '')
+    assert.equal(dashboard.viewingRequests.length, 1)
+    assert.equal(dashboard.viewingRequests[0].email, 'prospective@example.com')
+
+    const otherDashboard = await fetch(`${baseUrl}/api/dashboard/landlord/`, {
+      headers: { Authorization: `Token ${otherToken}` },
+    })
+    assert.deepEqual((await otherDashboard.json()).properties, [])
+  } finally {
+    server.close()
+  }
+})
