@@ -704,3 +704,44 @@ img { display: block; max-width: 100%; }
   .agreement-paper { padding: 30px 22px; }
   .agreement-actions { align-items: flex-start; flex-direction: column; }
 }
+
+.emergency-section { margin: 28px 0; }
+.emergency-section > h2 { margin: 0; font-size: 19px; }
+.emergency-section > .submission-help { margin: 8px 0 16px; }
+.emergency-contact-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.emergency-contact-card { position: relative; display: flex; align-items: flex-start; gap: 13px; min-width: 0; border: 1px solid var(--line); padding: 18px; background: #fff; }
+.emergency-national { border-color: #e7c8bd; background: #fff9f6; }
+.emergency-contact-icon { flex: 0 0 auto; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #eef4ec; color: var(--green); }
+.emergency-national .emergency-contact-icon { background: #f8e7df; color: #9a3c20; }
+.emergency-contact-copy { min-width: 0; }
+.emergency-contact-card h3 { margin: 1px 0 5px; color: var(--ink); font-size: 14px; }
+.emergency-contact-card p { margin: 0 0 5px; color: var(--muted); font-size: 12px; }
+.emergency-contact-card .emergency-contact-estate { color: var(--green); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
+.emergency-contact-card .emergency-contact-notes { margin-top: 8px; }
+.emergency-phone { display: inline-flex; margin-top: 5px; color: var(--green); font-size: 20px; font-weight: 700; text-decoration: none; }
+.emergency-phone:hover { color: var(--clay); }
+.emergency-form { margin: 28px 0; }
+.emergency-delete { margin-left: auto; border: 0; padding: 8px; background: transparent; color: #8f3e2c; }
+.emergency-delete:hover { background: #fff0eb; }
+.recommendation-filters { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.recommendation-intro { display: flex; align-items: flex-start; gap: 10px; margin: 24px 0 16px; border: 1px solid #dfe8d5; padding: 14px 16px; background: #f5f8ef; color: var(--green); }
+.recommendation-intro p { margin: 0; color: #52645a; font-size: 12px; line-height: 1.6; }
+.recommendation-card { min-width: 0; }
+.recommendation-score { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; border: 1px solid var(--line); padding: 10px 14px; background: #fff; color: var(--muted); font-size: 12px; }
+.recommendation-score strong { color: var(--green); font-size: 17px; }
+.recommendation-card .property-card { height: 100%; }
+.recommendation-reasons { display: grid; gap: 6px; margin: 0; border: 1px solid var(--line); border-top: 0; padding: 14px 18px 14px 32px; background: #fff; color: #52645a; font-size: 11px; line-height: 1.5; }
+.listing-warning { display: flex; align-items: flex-start; gap: 7px; margin: 0 0 11px; border-radius: 3px; padding: 8px; background: #fff4e8; color: #83521d; font-size: 10px; line-height: 1.5; }
+.listing-warning svg { flex: 0 0 auto; margin-top: 1px; }
+.listing-warning p { margin: 0; }
+.listing-warning p + p { margin-top: 5px; }
+
+@media (max-width: 820px) {
+  .recommendation-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 560px) {
+  .emergency-contact-grid, .recommendation-filters { grid-template-columns: 1fr; }
+  .emergency-section { margin: 22px 0; }
+  .recommendation-intro { align-items: flex-start; }
+}

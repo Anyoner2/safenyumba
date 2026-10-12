@@ -36,6 +36,24 @@ export function getProperties(searchParams) {
   return request(`/properties/${query ? `?${query}` : ''}`)
 }
 
+export function getRecommendations(searchParams) {
+  const query = searchParams?.toString()
+  return request(`/recommendations/${query ? `?${query}` : ''}`)
+}
+
+export function getEmergencyContacts(estateSlug = '') {
+  const query = estateSlug ? `?estate=${encodeURIComponent(estateSlug)}` : ''
+  return request(`/emergency-contacts/${query}`)
+}
+
+export function createEmergencyContact(contact) {
+  return request('/emergency-contacts/', { method: 'POST', body: contact })
+}
+
+export function deleteEmergencyContact(id) {
+  return request(`/emergency-contacts/${encodeURIComponent(id)}/`, { method: 'DELETE' })
+}
+
 export function createViewingRequest(viewingRequest) {
   return request('/viewing-requests/', { method: 'POST', body: viewingRequest })
 }

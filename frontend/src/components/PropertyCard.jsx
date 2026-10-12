@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeft, ArrowRight, BedDouble, CalendarDays, Heart, MapPin, MessageCircle, ShieldCheck, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BedDouble, CalendarDays, Heart, MapPin, MessageCircle, ShieldCheck, TriangleAlert, X } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth.jsx'
 import { createViewingRequest } from '../api.js'
@@ -95,6 +95,12 @@ function PropertyCard({ property }) {
       </div>
       <div className="property-body">
         {error && <p className="save-error" role="alert">{error}</p>}
+        {property.listingWarnings?.length > 0 && (
+          <div className="listing-warning" role="note">
+            <TriangleAlert size={15} aria-hidden="true" />
+            <div>{property.listingWarnings.map((warning) => <p key={warning}>{warning}</p>)}</div>
+          </div>
+        )}
         <div className="property-location"><MapPin size={14} /> {property.location}, {property.city}</div>
         <h3 className="property-title">{property.title}</h3>
         <div className="property-price">KSh {property.rent.toLocaleString('en-KE')} <span>/ month</span></div>

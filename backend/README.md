@@ -29,6 +29,8 @@ The API is available at `http://127.0.0.1:4000/api/`. The Vite development app c
 - `PATCH /api/properties/:id/vacancy/` with an assigned estate-manager token
 - `GET /api/maintenance-requests/` and `POST /api/maintenance-requests/` with a token; estate managers can update status using `PATCH /api/maintenance-requests/:id/status/`
 - Public `GET /api/announcements/` (optional `estate` filter); assigned estate managers can publish with `POST /api/announcements/`
+- Public `GET /api/emergency-contacts/` (optional `estate` filter); assigned estate managers can add and remove their estate contacts with `POST /api/emergency-contacts/` and `DELETE /api/emergency-contacts/:id/`
+- `GET /api/recommendations/` ranks verified, available homes using optional `location`, `budget`, `bedrooms`, and `amenity` preferences. Matching is deterministic and runs in the API; it does not send preferences to an external AI service.
 
 New accounts default to the `landlord` role; roles cannot be selected during registration. To assign an estate manager, update the account from an administrative PostgreSQL session after the estate exists:
 
@@ -53,5 +55,7 @@ Rent records belong to the authenticated landlord account. Link each record to a
 The landlord tenancy-document tool generates a print-ready agreement draft in the browser and can use the browser print dialog to save a PDF. It does not store agreement details or provide e-signatures or legal advice; the draft should be reviewed against current Kenyan law before signing.
 
 Property owners can capture GPS coordinates in the browser or place a pin on the OpenStreetMap widget while submitting a property. Coordinates are optional, validated as a latitude/longitude pair, and stored only with the private submission for verification. Public sample listing pins are approximate neighbourhood locations, not property addresses. OpenStreetMap receives requests for the map tiles covering the visible area, including when a GPS pin recentres the map; the submitted coordinates themselves are not included in the submission response or public property listings. OpenStreetMap tiles require an internet connection and display OpenStreetMap attribution; browser GPS permission requires a secure context (HTTPS or localhost).
+
+Potential listing issues are surfaced as review prompts, not fraud determinations. Duplicate checks require the same city, neighbourhood, and bedroom count, then an identical title or near-equal rent corroborated by a similar title or photo. Unusually low rent is flagged only when at least four comparable listings exist. Residents should independently verify details and avoid paying before confirming a property. Estate-specific emergency contacts are maintained by the assigned estate manager; the emergency page also shows Kenya's national emergency numbers.
 
 For production, import the GitHub repository into Vercel and set `backend` as the Vercel project's root directory. Add a persistent PostgreSQL database integration and set `DATABASE_URL` to its pooled connection string. Finally, set `VITE_API_URL` in the frontend deployment environment to the API's HTTPS URL and publish the frontend again. Vercel's function filesystem is not persistent, so production must use PostgreSQL.

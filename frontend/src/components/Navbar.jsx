@@ -8,6 +8,8 @@ const links = [
   { to: '/houses/', label: 'Find Houses' },
   { to: '/estates/', label: 'Estates' },
   { to: '/announcements/', label: 'Announcements' },
+  { to: '/emergency-contacts/', label: 'Emergency help' },
+  { to: '/recommendations/', label: 'Recommendations' },
   { to: '/list-property/', label: 'List Property' },
 ]
 

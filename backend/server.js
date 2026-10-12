@@ -32,6 +32,7 @@ const data = globalThis.__safeNyumbaData ??= {
   notifications: [],
   maintenanceRequests: [],
   announcements: [],
+  emergencyContacts: [],
   viewingRequests: [],
   ownerProperties: [],
   ownerUnits: [],
@@ -43,6 +44,7 @@ data.savedProperties ??= []
 data.notifications ??= []
 data.maintenanceRequests ??= []
 data.announcements ??= []
+data.emergencyContacts ??= []
 data.viewingRequests ??= []
 data.ownerProperties ??= []
 data.ownerUnits ??= []
@@ -403,6 +405,17 @@ async function initializeDatabase() {
         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
       );
     `)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS emergency_contacts (
+        id TEXT PRIMARY KEY,
+        estate_slug TEXT NOT NULL,
+        name TEXT NOT NULL,
+        service TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        notes TEXT NOT NULL DEFAULT '',
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      );
+    `)
 
     databaseReady = true
     return true
@@ -613,6 +626,106 @@ function buildPropertyPayload(property) {
   }
 }
 
+function getListingWarnings(property, properties) {
+  const warnings = []
+  const normalizedLocation = String(property.location || '').trim().toLowerCase()
+  const normalizedCity = String(property.city || '').trim().toLowerCase()
+  const titleWords = new Set(property.title.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+  const similarListings = properties.filter((candidate) => {
+    if (candidate.slug === property.slug) return false
+    if (!candidate.verified || !candidate.vacant) return false
+    if (String(candidate.city || '').trim().toLowerCase() !== normalizedCity) return false
+    if (String(candidate.location || '').trim().toLowerCase() !== normalizedLocation) return false
+    if (candidate.bedrooms !== property.bedrooms) return false
+
+    const rentDifference = Math.abs(candidate.rent - property.rent) / Math.max(candidate.rent, property.rent, 1)
+    const sharedImage = candidate.image && candidate.image === property.image
+    const similarRent = rentDifference <= 0.1
+    const candidateTitleWords = new Set(candidate.title.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean))
+    const sharedWords = [...titleWords].filter((word) => candidateTitleWords.has(word)).length
+    const titleSimilarity = sharedWords / Math.max(titleWords.size + candidateTitleWords.size - sharedWords, 1)
+    const sameTitle = titleSimilarity === 1
+    return sameTitle || (similarRent && (sharedImage || titleSimilarity >= 0.5))
+  })
+
+  if (similarListings.length) {
+    warnings.push('A similar listing is available in this neighbourhood. Verify the property and contact details before paying.')
+  }
+
+  const comparables = properties.filter((candidate) =>
+    candidate.slug !== property.slug
+    && candidate.verified
+    && candidate.vacant
+    && String(candidate.city || '').trim().toLowerCase() === normalizedCity
+    && candidate.bedrooms === property.bedrooms
+    && candidate.kind.toLowerCase() === property.kind.toLowerCase(),
+  )
+  if (comparables.length >= 4) {
+    const rents = comparables.map((candidate) => candidate.rent).sort((a, b) => a - b)
+    const medianRent = rents[Math.floor(rents.length / 2)]
+    if (property.rent < medianRent * 0.5) {
+      warnings.push('The rent is much lower than comparable listings. Confirm the listing independently before paying.')
+    }
+  }
+
+  return warnings
+}
+
+function buildRecommendation(property, preferences, properties) {
+  let score = 0
+  const reasons = []
+  const location = preferences.location.toLowerCase()
+  const amenity = preferences.amenity.toLowerCase()
+
+  if (location) {
+    const matchesLocation = property.location.toLowerCase().includes(location)
+      || property.estate.toLowerCase().includes(location)
+    const matchesCity = property.city.toLowerCase().includes(location)
+    if (matchesLocation) {
+      score += 5
+      reasons.push(`Matches your preferred area: ${property.location}.`)
+    } else if (matchesCity) {
+      score += 3
+      reasons.push(`Located in your preferred city: ${property.city}.`)
+    }
+  }
+
+  if (preferences.budget !== null) {
+    if (property.rent <= preferences.budget) {
+      score += 4
+      reasons.push('Within your monthly rent budget.')
+    } else if (property.rent <= preferences.budget * 1.1) {
+      score += 1
+      reasons.push('Close to your monthly rent budget.')
+    }
+  }
+
+  if (preferences.bedrooms !== null) {
+    if (property.bedrooms === preferences.bedrooms) {
+      score += 4
+      reasons.push(`Has your preferred ${preferences.bedrooms}-bedroom size.`)
+    } else if (property.bedrooms > preferences.bedrooms) {
+      score += 2
+      reasons.push('Has at least your preferred number of bedrooms.')
+    }
+  }
+
+  if (amenity && property.amenity.toLowerCase().includes(amenity)) {
+    score += 3
+    reasons.push(`Includes your preferred amenity: ${preferences.amenity}.`)
+  }
+
+  score += 1
+  if (!reasons.length) reasons.push('Verified and currently available.')
+
+  return {
+    ...buildPropertyPayload(property),
+    score,
+    reasons,
+    listingWarnings: getListingWarnings(property, properties),
+  }
+}
+
 function normalizeEmail(value) {
   return String(value || '').trim().toLowerCase()
 }
@@ -689,6 +802,8 @@ app.get('/', (req, res) => {
     endpoints: {
       health: '/api/health/',
       properties: '/api/properties/',
+      recommendations: '/api/recommendations/',
+      emergencyContacts: '/api/emergency-contacts/',
       estates: '/api/estates/',
       auth: '/api/auth/',
     },
@@ -702,7 +817,8 @@ app.get('/api/health/', (req, res) => {
 app.get('/api/properties/', async (req, res) => {
   const { location = '', budget, minRent, maxRent, bedrooms, kind, amenity } = req.query
 
-  let filtered = (await getPropertiesWithAvailability()).filter((property) => property.vacant && property.verified)
+  const allProperties = await getPropertiesWithAvailability()
+  let filtered = allProperties.filter((property) => property.vacant && property.verified)
 
   if (location) {
     const value = String(location).trim().toLowerCase()
@@ -748,7 +864,125 @@ app.get('/api/properties/', async (req, res) => {
     }
   }
 
-  res.json(filtered.map(buildPropertyPayload))
+  res.json(filtered.map((property) => ({
+    ...buildPropertyPayload(property),
+    listingWarnings: getListingWarnings(property, allProperties),
+  })))
+})
+
+app.get('/api/recommendations/', async (req, res) => {
+  const { location = '', budget, bedrooms, amenity = '' } = req.query
+  const parsedBudget = budget === undefined || budget === '' ? null : Number(budget)
+  const parsedBedrooms = bedrooms === undefined || bedrooms === '' ? null : Number(bedrooms)
+
+  if (parsedBudget !== null && (!Number.isInteger(parsedBudget) || parsedBudget < 0)) {
+    return res.status(400).json({ budget: ['Enter a whole number greater than or equal to zero.'] })
+  }
+  if (parsedBedrooms !== null && (!Number.isInteger(parsedBedrooms) || parsedBedrooms < 1)) {
+    return res.status(400).json({ bedrooms: ['Enter a positive whole number.'] })
+  }
+
+  const properties = (await getPropertiesWithAvailability())
+    .filter((property) => property.vacant && property.verified)
+  const preferences = {
+    location: String(location).trim(),
+    budget: parsedBudget,
+    bedrooms: parsedBedrooms,
+    amenity: String(amenity).trim(),
+  }
+  const recommendations = properties
+    .map((property) => buildRecommendation(property, preferences, properties))
+    .sort((first, second) => second.score - first.score || first.rent - second.rent)
+
+  res.json(recommendations.slice(0, 8))
+})
+
+app.get('/api/emergency-contacts/', async (req, res) => {
+  const estateSlug = typeof req.query.estate === 'string' ? req.query.estate : ''
+  if (estateSlug && !seedEstates.some((estate) => estate.slug === estateSlug)) {
+    return res.status(400).json({ estate: ['Choose an available estate.'] })
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `SELECT id, estate_slug, name, service, phone, notes, created_at
+       FROM emergency_contacts
+       WHERE $1 = '' OR estate_slug = $1
+       ORDER BY name`,
+      [estateSlug],
+    )
+    return res.json(result.rows)
+  }
+
+  res.json(data.emergencyContacts
+    .filter((contact) => !estateSlug || contact.estate_slug === estateSlug)
+    .sort((first, second) => first.name.localeCompare(second.name)))
+})
+
+app.post('/api/emergency-contacts/', authRequired, roleRequired('estate_manager', 'Only estate managers can add emergency contacts.'), async (req, res) => {
+  const estateSlug = req.user.managed_estate
+  if (!seedEstates.some((estate) => estate.slug === estateSlug)) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+
+  const body = req.body || {}
+  const name = typeof body.name === 'string' ? body.name.trim() : ''
+  const service = typeof body.service === 'string' ? body.service.trim() : ''
+  const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : ''
+  const errors = {}
+  if (!name || name.length > 100) errors.name = ['Enter a contact name (up to 100 characters).']
+  if (!service || service.length > 80) errors.service = ['Enter a service or role (up to 80 characters).']
+  if (!/^[+()\d\s.-]{5,40}$/.test(phone)) errors.phone = ['Enter a valid phone number.']
+  if (notes.length > 240) errors.notes = ['Keep notes to 240 characters or fewer.']
+  if (Object.keys(errors).length) return res.status(400).json(errors)
+
+  const contact = {
+    id: `contact-${crypto.randomUUID()}`,
+    estate_slug: estateSlug,
+    name,
+    service,
+    phone,
+    notes,
+    created_at: new Date().toISOString(),
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      `INSERT INTO emergency_contacts (id, estate_slug, name, service, phone, notes, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
+       RETURNING id, estate_slug, name, service, phone, notes, created_at`,
+      [contact.id, contact.estate_slug, contact.name, contact.service, contact.phone, contact.notes, contact.created_at],
+    )
+    return res.status(201).json(result.rows[0])
+  }
+
+  data.emergencyContacts.push(contact)
+  saveData()
+  res.status(201).json(contact)
+})
+
+app.delete('/api/emergency-contacts/:id/', authRequired, roleRequired('estate_manager', 'Only estate managers can remove emergency contacts.'), async (req, res) => {
+  if (!seedEstates.some((estate) => estate.slug === req.user.managed_estate)) {
+    return res.status(403).json({ detail: 'An assigned estate-manager account is required.' })
+  }
+
+  if (pool && databaseReady) {
+    const result = await pool.query(
+      'DELETE FROM emergency_contacts WHERE id = $1 AND estate_slug = $2',
+      [req.params.id, req.user.managed_estate],
+    )
+    if (!result.rowCount) return res.status(404).json({ detail: 'Emergency contact not found in your assigned estate.' })
+    return res.status(204).send()
+  }
+
+  const index = data.emergencyContacts.findIndex(
+    (contact) => contact.id === req.params.id && contact.estate_slug === req.user.managed_estate,
+  )
+  if (index === -1) return res.status(404).json({ detail: 'Emergency contact not found in your assigned estate.' })
+  data.emergencyContacts.splice(index, 1)
+  saveData()
+  res.status(204).send()
 })
 
 app.post('/api/viewing-requests/', async (req, res) => {
