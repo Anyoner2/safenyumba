@@ -2,6 +2,7 @@ import { HashRouter, Navigate, Route, Routes } from 'react-router-dom'
 import Footer from './components/Footer.jsx'
 import Navbar from './components/Navbar.jsx'
 import Estates from './pages/Estates.jsx'
+import EstateOverview from './pages/EstateOverview.jsx'
 import EstateDashboard from './pages/EstateDashboard.jsx'
 import Home from './pages/Home.jsx'
 import Houses from './pages/Houses.jsx'
@@ -30,6 +31,7 @@ function App() {
             <Route path="/" element={<Home />} />
             <Route path="/houses" element={<Houses />} />
             <Route path="/estates" element={<Estates />} />
+            <Route path="/estates/:slug" element={<EstateOverview />} />
             <Route path="/dashboard" element={<LandlordDashboard />} />
             <Route path="/estate-dashboard" element={<EstateDashboard />} />
             <Route path="/list-property" element={<ListProperty />} />

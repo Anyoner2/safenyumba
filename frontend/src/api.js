@@ -62,6 +62,14 @@ export function getEstates() {
   return request('/estates/')
 }
 
+export function getEstateOverview(slug) {
+  return request(`/estates/${encodeURIComponent(slug)}/overview/`)
+}
+
+export function getEstateNearbyPlaces(slug) {
+  return request(`/estates/${encodeURIComponent(slug)}/nearby-places/`)
+}
+
 export function submitProperty(property) {
   return request('/property-submissions/', { method: 'POST', body: property })
 }

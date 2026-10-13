@@ -42,7 +42,7 @@ function Estates() {
               <p>{estate.description}</p>
               <div className="estate-card-meta">
                 <span>{estate.homes} verified {estate.homes === 1 ? 'home' : 'homes'}</span>
-                <Link to={`/houses/?location=${encodeURIComponent(estate.name)}`}>View area →</Link>
+                <Link to={`/estates/${encodeURIComponent(estate.slug)}/`}>Estate overview →</Link>
               </div>
             </div>
           </article>

@@ -71,6 +71,13 @@ const seedEstates = [
     description: 'An established residential area with graceful homes, green spaces, and a relaxed suburban feel.',
     image: 'https://images.unsplash.com/photo-1484154218962-a197022b5858?auto=format&fit=crop&w=1200&q=80',
   },
+  {
+    slug: 'nyayo-estate',
+    name: 'Nyayo Estate',
+    area: 'Embakasi, Nairobi',
+    description: 'Explore available homes and local amenities around Nyayo Estate in Embakasi.',
+    image: 'https://images.unsplash.com/photo-1600607687939-ce8a6c25118c?auto=format&fit=crop&w=1200&q=85',
+  },
 ]
 
 const seedProperties = [
@@ -253,6 +260,10 @@ seedProperties.forEach((property) => {
     image: property.image,
   })
 })
+
+const nearbyPlacesCache = new Map()
+let geocodeQueue = Promise.resolve()
+let lastGeocodeRequestAt = 0
 
 function saveData() {
   globalThis.__safeNyumbaData = data
@@ -503,7 +514,7 @@ async function clearToken(token) {
 
 function buildEstatePayload(estate, properties = seedProperties) {
   const homes = properties.filter(
-    (property) => property.estate === estate.slug && property.verified && property.vacant,
+    (property) => propertyBelongsToEstate(property, estate) && property.verified && property.vacant,
   ).length
 
   return {
@@ -514,6 +525,167 @@ function buildEstatePayload(estate, properties = seedProperties) {
     description: estate.description,
     image: estate.image,
   }
+}
+
+function normalizePlace(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function propertyBelongsToEstate(property, estate) {
+  if (property.estate === estate.slug) return true
+  const estateNames = new Set([normalizePlace(estate.name), normalizePlace(estate.slug.replaceAll('-', ' '))])
+  const areaNames = new Set(estate.area.split(',').map(normalizePlace))
+  return estateNames.has(normalizePlace(property.location))
+    && areaNames.has(normalizePlace(property.city))
+}
+
+function resolveEstateSlug(location, city) {
+  const normalizedLocation = normalizePlace(location)
+  const normalizedCity = normalizePlace(city)
+  return seedEstates.find((estate) =>
+    [normalizePlace(estate.name), normalizePlace(estate.slug.replaceAll('-', ' '))].includes(normalizedLocation)
+    && estate.area.split(',').map(normalizePlace).includes(normalizedCity),
+  )?.slug || ''
+}
+
+function haversineDistanceMeters(firstLatitude, firstLongitude, secondLatitude, secondLongitude) {
+  const radians = (degrees) => degrees * Math.PI / 180
+  const latitudeDifference = radians(secondLatitude - firstLatitude)
+  const longitudeDifference = radians(secondLongitude - firstLongitude)
+  const latitudeTerm = Math.sin(latitudeDifference / 2) ** 2
+  const longitudeTerm = Math.sin(longitudeDifference / 2) ** 2
+  const angle = 2 * Math.atan2(
+    Math.sqrt(latitudeTerm + Math.cos(radians(firstLatitude)) * Math.cos(radians(secondLatitude)) * longitudeTerm),
+    Math.sqrt(1 - latitudeTerm - Math.cos(radians(firstLatitude)) * Math.cos(radians(secondLatitude)) * longitudeTerm),
+  )
+  return Math.round(6371000 * angle)
+}
+
+function requestNominatim(url) {
+  const task = geocodeQueue.then(async () => {
+    const wait = Math.max(0, 1100 - (Date.now() - lastGeocodeRequestAt))
+    if (wait) await new Promise((resolve) => setTimeout(resolve, wait))
+    lastGeocodeRequestAt = Date.now()
+
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000)
+    try {
+      const response = await fetch(url, {
+        headers: { 'User-Agent': 'SafeNyumba Estate Overview (https://github.com/Anyoner2/safenyumba)' },
+        signal: controller.signal,
+      })
+      if (!response.ok) throw new Error(`Nominatim returned HTTP ${response.status}.`)
+      return await response.json()
+    } finally {
+      clearTimeout(timeout)
+    }
+  })
+  geocodeQueue = task.catch(() => {})
+  return task
+}
+
+async function loadNearbyPlaces(estate) {
+  const cached = nearbyPlacesCache.get(estate.slug)
+  if (cached && cached.expiresAt > Date.now()) return cached.value
+
+  const search = new URLSearchParams({
+    format: 'jsonv2',
+    limit: '1',
+    q: `${estate.name}, ${estate.area}, Kenya`,
+  })
+  const matches = await requestNominatim(`https://nominatim.openstreetmap.org/search?${search}`)
+  const center = matches[0]
+  const latitude = Number(center?.lat)
+  const longitude = Number(center?.lon)
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) {
+    return {
+      center: null,
+      counts: { shops: 0, hospitals: 0, schools: 0, transport: 0 },
+      categories: { shops: [], hospitals: [], schools: [], transport: [] },
+    }
+  }
+
+  const radius = 2000
+  const filters = [
+    ['shops', 'nwr["shop"]["name"]'],
+    ['hospitals', 'nwr["amenity"~"^(hospital|clinic|doctors)$"]["name"]'],
+    ['schools', 'nwr["amenity"~"^(school|kindergarten|college|university)$"]["name"]'],
+    ['transport', 'nwr["highway"="bus_stop"]["name"]'],
+    ['transport', 'nwr["public_transport"~"^(platform|station)$"]["name"]'],
+    ['transport', 'nwr["railway"~"^(station|tram_stop)$"]["name"]'],
+  ]
+  const query = `[out:json][timeout:20];(${filters
+    .map(([, selector]) => `${selector}(around:${radius},${latitude},${longitude});`)
+    .join('')});out center tags;`
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 25000)
+  let response
+  try {
+    response = await fetch('https://overpass-api.de/api/interpreter', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded;charset=UTF-8',
+        'User-Agent': 'SafeNyumba Estate Overview (https://github.com/Anyoner2/safenyumba)',
+      },
+      body: `data=${encodeURIComponent(query)}`,
+      signal: controller.signal,
+    })
+    if (!response.ok) throw new Error(`Overpass returned HTTP ${response.status}.`)
+  } finally {
+    clearTimeout(timeout)
+  }
+
+  const payload = await response.json()
+  const categories = { shops: [], hospitals: [], schools: [], transport: [] }
+  const seenElements = new Set()
+  for (const element of payload.elements || []) {
+    const tags = element.tags || {}
+    const placeLatitude = Number(element.lat ?? element.center?.lat)
+    const placeLongitude = Number(element.lon ?? element.center?.lon)
+    if (!tags.name || !Number.isFinite(placeLatitude) || !Number.isFinite(placeLongitude)) continue
+
+    let category = ''
+    let type = ''
+    if (tags.shop) {
+      category = 'shops'
+      type = String(tags.shop).replaceAll('_', ' ')
+    } else if (['hospital', 'clinic', 'doctors'].includes(tags.amenity)) {
+      category = 'hospitals'
+      type = tags.amenity === 'doctors' ? 'Medical practice' : tags.amenity
+    } else if (['school', 'kindergarten', 'college', 'university'].includes(tags.amenity)) {
+      category = 'schools'
+      type = tags.amenity
+    } else if (tags.highway === 'bus_stop' || tags.public_transport || tags.railway) {
+      category = 'transport'
+      type = tags.highway === 'bus_stop' ? 'Bus stop' : tags.railway || tags.public_transport
+    }
+    const elementId = `${element.type}-${element.id}`
+    if (!category || seenElements.has(elementId)) continue
+
+    seenElements.add(elementId)
+    categories[category].push({
+      id: elementId,
+      name: tags.name,
+      type: String(type).replaceAll('_', ' '),
+      distanceMeters: haversineDistanceMeters(latitude, longitude, placeLatitude, placeLongitude),
+    })
+  }
+
+  const counts = Object.fromEntries(
+    Object.entries(categories).map(([category, places]) => [category, places.length]),
+  )
+  for (const places of Object.values(categories)) {
+    places.sort((first, second) => first.distanceMeters - second.distanceMeters || first.name.localeCompare(second.name))
+    places.splice(6)
+  }
+
+  const result = {
+    center: { latitude, longitude, radiusMeters: radius },
+    counts,
+    categories,
+  }
+  nearbyPlacesCache.set(estate.slug, { value: result, expiresAt: Date.now() + 6 * 60 * 60 * 1000 })
+  return result
 }
 
 async function getPropertiesWithAvailability() {
@@ -537,7 +709,7 @@ async function getPropertiesWithAvailability() {
     (unitsByPropertyId.get(property.id) || []).map((unit) => ({
       slug: `owner-unit-${unit.id}`,
       owner_id: property.owner_id,
-      estate: property.id,
+      estate: resolveEstateSlug(property.location, property.city) || property.id,
       title: `${property.name} · ${unit.name}`,
       location: property.location,
       city: property.city,
@@ -1266,6 +1438,122 @@ app.patch('/api/owner/properties/:propertyId/units/:unitId/', authRequired, role
     if (publicProperty) notificationsCreated = await notifySavedHomeUsers(publicProperty)
   }
   res.json({ ...serializeOwnerUnit(updated), notificationsCreated })
+})
+
+app.get('/api/estates/:slug/overview/', async (req, res) => {
+  const estate = seedEstates.find((entry) => entry.slug === req.params.slug)
+  if (!estate) return res.status(404).json({ detail: 'Estate not found.' })
+
+  const properties = await getPropertiesWithAvailability()
+  const homes = properties
+    .filter((property) => propertyBelongsToEstate(property, estate) && property.verified)
+    .map((property) => ({
+      ...buildPropertyPayload(property),
+      status: property.status || (property.vacant ? 'vacant' : 'unavailable'),
+    }))
+    .sort((first, second) => {
+      const statusOrder = { vacant: 0, occupied: 1, reserved: 2, unavailable: 3 }
+      return (statusOrder[first.status] ?? 4) - (statusOrder[second.status] ?? 4)
+        || first.rent - second.rent
+    })
+  const availableHomes = homes.filter((home) => home.status === 'vacant')
+  const ownerProperties = (await getAllOwnerProperties())
+    .filter((property) => propertyBelongsToEstate(property, estate))
+  const ownerUnits = await getOwnerUnitsForProperties(ownerProperties.map((property) => property.id))
+  const residentKeys = new Set()
+  ownerUnits
+    .filter((unit) => unit.status === 'occupied')
+    .forEach((unit) => {
+      const email = normalizeEmail(unit.tenant_email)
+      const phone = String(unit.tenant_phone || '').replace(/[^\d+]/g, '')
+      const name = normalizePlace(unit.tenant_name)
+      residentKeys.add(email || phone || `${unit.property_id}:${unit.id}:${name}`)
+    })
+
+  let openIssues
+  let emergencyContacts
+  let announcements
+  if (pool && databaseReady) {
+    const [issuesResult, contactsResult, announcementsResult] = await Promise.all([
+      pool.query(
+        `SELECT COUNT(*)::integer AS count
+         FROM maintenance_requests
+         WHERE estate_slug = $1 AND status <> 'resolved'`,
+        [estate.slug],
+      ),
+      pool.query(
+        `SELECT id, estate_slug, name, service, phone, notes, created_at
+         FROM emergency_contacts
+         WHERE estate_slug = $1
+         ORDER BY name`,
+        [estate.slug],
+      ),
+      pool.query(
+        `SELECT a.id, a.estate_slug, a.title, a.body, a.created_at,
+                u.first_name AS author_name
+         FROM estate_announcements a
+         INNER JOIN users u ON u.id = a.author_id
+         WHERE a.estate_slug = $1
+         ORDER BY a.created_at DESC
+         LIMIT 5`,
+        [estate.slug],
+      ),
+    ])
+    openIssues = issuesResult.rows[0].count
+    emergencyContacts = contactsResult.rows
+    announcements = announcementsResult.rows.map((announcement) => ({
+      ...announcement,
+      estate_name: estate.name,
+    }))
+  } else {
+    openIssues = data.maintenanceRequests.filter(
+      (request) => request.estate_slug === estate.slug && request.status !== 'resolved',
+    ).length
+    emergencyContacts = data.emergencyContacts
+      .filter((contact) => contact.estate_slug === estate.slug)
+      .sort((first, second) => first.name.localeCompare(second.name))
+    const usersById = new Map(data.users.map((user) => [user.id, user]))
+    announcements = data.announcements
+      .filter((announcement) => announcement.estate_slug === estate.slug)
+      .sort((first, second) => second.created_at.localeCompare(first.created_at))
+      .slice(0, 5)
+      .map((announcement) => ({
+        id: announcement.id,
+        estate_slug: announcement.estate_slug,
+        estate_name: estate.name,
+        title: announcement.title,
+        body: announcement.body,
+        created_at: announcement.created_at,
+        author_name: usersById.get(announcement.author_id)?.first_name || '',
+      }))
+  }
+
+  res.json({
+    estate: buildEstatePayload(estate, properties),
+    homes,
+    availableHomes,
+    residentCount: residentKeys.size,
+    openIssues,
+    emergencyContacts,
+    announcements,
+  })
+})
+
+app.get('/api/estates/:slug/nearby-places/', async (req, res) => {
+  const estate = seedEstates.find((entry) => entry.slug === req.params.slug)
+  if (!estate) return res.status(404).json({ detail: 'Estate not found.' })
+
+  try {
+    return res.json(await loadNearbyPlaces(estate))
+  } catch (error) {
+    const timedOut = error.name === 'AbortError'
+    console.warn('OpenStreetMap nearby-places lookup failed:', error.message)
+    return res.status(timedOut ? 504 : 502).json({
+      detail: timedOut
+        ? 'OpenStreetMap took too long to respond. Please try again.'
+        : 'Nearby places are temporarily unavailable from OpenStreetMap. Please try again.',
+    })
+  }
 })
 
 app.get('/api/estates/', async (req, res) => {
