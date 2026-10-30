@@ -773,6 +773,13 @@ img { display: block; max-width: 100%; }
 .estate-homes-table td:first-child a { color: var(--green); font-weight: 700; text-decoration: none; }
 .estate-homes-table td:first-child a:hover { text-decoration: underline; }
 .estate-homes-table td:first-child small { display: block; margin-top: 4px; color: var(--muted); font-size: 10px; }
+.estate-inventory-filters { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 0 0 8px; }
+.estate-inventory-filters label { display: grid; gap: 5px; color: var(--muted); font-size: 10px; font-weight: 700; }
+.estate-inventory-filters select, .estate-inventory-filters input { width: 100%; min-height: 36px; border: 1px solid var(--line); padding: 8px 10px; background: #fff; color: var(--ink); font: inherit; font-size: 11px; }
+.estate-inventory-search > div { position: relative; }
+.estate-inventory-search svg { position: absolute; top: 10px; left: 10px; color: var(--muted); }
+.estate-inventory-search input { padding-left: 31px; }
+.estate-filter-result-count { margin: 0 0 10px; color: var(--muted); font-size: 10px; }
 .estate-home-status { display: inline-flex; border-radius: 20px; padding: 5px 9px; background: #eaf4e8; color: #28643a; font-size: 10px; font-weight: 700; }
 .estate-home-status-occupied { background: #f8e8e5; color: #963e34; }
 .estate-home-status-reserved, .estate-home-status-unavailable { background: #f3f0df; color: #75621d; }
@@ -789,6 +796,9 @@ img { display: block; max-width: 100%; }
 .estate-nearby-card > .estate-nearby-more { margin-top: 8px; font-size: 10px; }
 .estate-osm-attribution { margin: 12px 0 0; color: var(--muted); font-size: 10px; line-height: 1.5; }
 .estate-osm-attribution a { color: var(--green); }
+.estate-map { overflow: hidden; margin-top: 16px; border: 1px solid var(--line); background: #fff; }
+.estate-map-canvas { height: 360px; width: 100%; }
+.estate-map .map-attribution-note { margin: 0; padding: 8px 12px; color: var(--muted); font-size: 10px; }
 .estate-places-error { display: flex; align-items: center; gap: 10px; border: 1px solid #ead8b9; padding: 13px 15px; background: #fff8ec; color: #775326; font-size: 12px; }
 .estate-places-error .filter-reset { flex: 0 0 auto; margin-left: auto; color: #775326; }
 .estate-overview-bottom-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; align-items: start; }
@@ -814,6 +824,7 @@ img { display: block; max-width: 100%; }
 
 @media (max-width: 820px) {
   .estate-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .estate-inventory-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .estate-overview-bottom-grid { grid-template-columns: 1fr; gap: 4px; }
 }
 
@@ -821,6 +832,7 @@ img { display: block; max-width: 100%; }
   .estate-overview-hero { grid-template-columns: 1fr; }
   .estate-overview-hero > img { height: 210px; min-height: 0; }
   .estate-overview-hero-copy { padding: 25px 22px 28px; }
+  .estate-inventory-filters { grid-template-columns: 1fr; }
   .estate-nearby-grid { grid-template-columns: 1fr; }
   .estate-section-heading { align-items: flex-start; flex-direction: column; }
 }

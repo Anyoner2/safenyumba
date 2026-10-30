@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, ArrowRight, BusFront, HeartPulse, MapPin, PhoneCall, School, Store, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, ArrowRight, BusFront, HeartPulse, MapPin, PhoneCall, School, Search, Store, TriangleAlert } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet'
 import { getEstateNearbyPlaces, getEstateOverview } from '../api.js'
+import 'leaflet/dist/leaflet.css'
 
 const currency = new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES', maximumFractionDigits: 0 })
 const nearbyCategories = [
@@ -28,6 +30,7 @@ function EstateOverview() {
   const places = placesLoading ? null : placesState.data
   const overviewError = overviewLoading ? '' : overviewState.error
   const placesError = placesLoading ? '' : placesState.error
+  const [inventoryFilters, setInventoryFilters] = useState({ status: 'all', bedrooms: 'all', maxRent: '', search: '' })
 
   useEffect(() => {
     let active = true
@@ -68,6 +71,15 @@ function EstateOverview() {
 
   const { estate, homes, availableHomes, residentCount, openIssues, emergencyContacts, announcements } = overview
   const categories = places?.categories || {}
+  const filteredHomes = homes.filter((home) => {
+    const matchesStatus = inventoryFilters.status === 'all' || home.status === inventoryFilters.status
+    const matchesBedrooms = inventoryFilters.bedrooms === 'all' || String(home.bedrooms) === inventoryFilters.bedrooms
+    const matchesRent = !inventoryFilters.maxRent || home.rent <= Number(inventoryFilters.maxRent)
+    const query = inventoryFilters.search.trim().toLowerCase()
+    const matchesSearch = !query || `${home.title} ${home.location} ${home.kind}`.toLowerCase().includes(query)
+    return matchesStatus && matchesBedrooms && matchesRent && matchesSearch
+  })
+  const mapPlaces = Object.values(categories).flat()
   const summaryCards = [
     { label: 'Available homes', value: availableHomes.length },
     { label: 'Registered residents', value: residentCount, note: 'Distinct tenant records for occupied units' },
@@ -113,14 +125,21 @@ function EstateOverview() {
           </div>
           <Link className="text-link" to={`/houses/?location=${encodeURIComponent(estate.name)}`}>View all search results <ArrowRight size={16} /></Link>
         </div>
-        {homes.length ? (
+        <div className="estate-inventory-filters" aria-label="Filter estate homes">
+          <label><span>Status</span><select value={inventoryFilters.status} onChange={(event) => setInventoryFilters({ ...inventoryFilters, status: event.target.value })}><option value="all">All statuses</option><option value="vacant">Vacant</option><option value="occupied">Occupied</option><option value="reserved">Reserved</option></select></label>
+          <label><span>Bedrooms</span><select value={inventoryFilters.bedrooms} onChange={(event) => setInventoryFilters({ ...inventoryFilters, bedrooms: event.target.value })}><option value="all">Any bedrooms</option>{[...new Set(homes.map((home) => home.bedrooms))].sort((a, b) => a - b).map((bedrooms) => <option key={bedrooms} value={bedrooms}>{bedrooms} bedroom{bedrooms === 1 ? '' : 's'}</option>)}</select></label>
+          <label><span>Maximum rent</span><input type="number" min="0" placeholder="Any rent" value={inventoryFilters.maxRent} onChange={(event) => setInventoryFilters({ ...inventoryFilters, maxRent: event.target.value })} /></label>
+          <label className="estate-inventory-search"><span>Search homes</span><div><Search size={15} aria-hidden="true" /><input type="search" placeholder="Name, type, or area" value={inventoryFilters.search} onChange={(event) => setInventoryFilters({ ...inventoryFilters, search: event.target.value })} /></div></label>
+        </div>
+        <p className="estate-filter-result-count">Showing {filteredHomes.length} of {homes.length} listed homes</p>
+        {filteredHomes.length ? (
           <div className="estate-homes-table-wrap">
             <table className="estate-homes-table">
               <thead>
                 <tr><th scope="col">House</th><th scope="col">Type</th><th scope="col">Bedrooms</th><th scope="col">Rent / month</th><th scope="col">Status</th></tr>
               </thead>
               <tbody>
-                {homes.map((home) => (
+                {filteredHomes.map((home) => (
                   <tr key={home.id}>
                     <td>
                       <Link to={`/houses/?location=${encodeURIComponent(home.location)}`}>{home.title}</Link>
@@ -142,7 +161,7 @@ function EstateOverview() {
             </table>
           </div>
         ) : (
-          <p className="empty-state">No verified homes or units are listed in this estate yet.</p>
+          <p className="empty-state">{homes.length ? 'No homes match these filters.' : 'No verified homes or units are listed in this estate yet.'}</p>
         )}
       </section>
 
@@ -195,6 +214,17 @@ function EstateOverview() {
                 </article>
               ))}
             </div>
+            {places.center && (
+              <div className="estate-map">
+                <MapContainer center={[places.center.latitude, places.center.longitude]} zoom={14} scrollWheelZoom className="estate-map-canvas">
+                  <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <CircleMarker center={[places.center.latitude, places.center.longitude]} radius={10} pathOptions={{ color: '#fff', fillColor: '#c46646', fillOpacity: 1, weight: 3 }}><Popup>Approximate estate search centre</Popup></CircleMarker>
+                  {homes.filter((home) => Number.isFinite(home.latitude) && Number.isFinite(home.longitude)).map((home) => <CircleMarker key={`home-${home.id}`} center={[home.latitude, home.longitude]} radius={8} pathOptions={{ color: '#fff', fillColor: home.status === 'vacant' ? '#174d3a' : '#75621d', fillOpacity: 1, weight: 2 }}><Popup><strong>{home.title}</strong><br />{home.status}</Popup></CircleMarker>)}
+                  {mapPlaces.filter((place) => Number.isFinite(place.latitude) && Number.isFinite(place.longitude)).map((place) => <CircleMarker key={`place-${place.id}`} center={[place.latitude, place.longitude]} radius={5} pathOptions={{ color: '#fff', fillColor: '#557d9a', fillOpacity: .9, weight: 1 }}><Popup><strong>{place.name}</strong><br />{place.type}</Popup></CircleMarker>)}
+                </MapContainer>
+                <p className="map-attribution-note">Green: vacant home · gold: occupied or reserved · blue: nearby place · red: approximate estate centre</p>
+              </div>
+            )}
             <p className="estate-osm-attribution">
               Nearby-place data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Results may be incomplete or out of date; verify locations independently.
             </p>

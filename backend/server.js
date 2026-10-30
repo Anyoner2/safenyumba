@@ -667,6 +667,8 @@ async function loadNearbyPlaces(estate) {
       id: elementId,
       name: tags.name,
       type: String(type).replaceAll('_', ' '),
+      latitude: placeLatitude,
+      longitude: placeLongitude,
       distanceMeters: haversineDistanceMeters(latitude, longitude, placeLatitude, placeLongitude),
     })
   }
