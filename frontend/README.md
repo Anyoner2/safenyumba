@@ -2,7 +2,21 @@
 
 ## Local development
 
-```sh
+From the repository root, install all workspace dependencies:
+
+```powershell
+npm install
+```
+
+Start the frontend:
+
+```powershell
+npm run dev:frontend
+```
+
+Alternatively, run these commands from `frontend`:
+
+```powershell
 npm install
 npm run dev
 ```

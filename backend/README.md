@@ -2,7 +2,19 @@
 
 ## Local development
 
-From `backend`, install dependencies and start the API:
+From the repository root, install all workspace dependencies:
+
+```powershell
+npm install
+```
+
+Start the API from the repository root:
+
+```powershell
+npm run dev:backend
+```
+
+Alternatively, run these commands from `backend`:
 
 ```powershell
 npm install
